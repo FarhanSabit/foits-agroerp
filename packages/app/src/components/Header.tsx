@@ -35,8 +35,8 @@ interface HeaderProps {
   onResetDB: () => void;
   role: string;
   onChangeRole: (newRole: string) => void;
-  currency: "BDT" | "USD";
-  onToggleCurrency: (currency: "BDT" | "USD") => void;
+  currency: "BDT" | "USD" | "EUR";
+  onToggleCurrency: (currency: "BDT" | "USD" | "EUR") => void;
   onAutoGeneratePreventivePR?: (itemCode: string, qty: number) => void;
   currentUser?: UserAccount | null;
   onOpenAuthModal?: () => void;
@@ -337,14 +337,14 @@ export default function Header({
         {/* Currency Toggle */}
         <button
           onClick={() => {
-            const nextCurr = currency === "USD" ? "BDT" : "USD";
+            const nextCurr = currency === "BDT" ? "USD" : currency === "USD" ? "EUR" : "BDT";
             onToggleCurrency(nextCurr);
           }}
           className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
           title={isBangla ? "মুদ্রা পরিবর্তন করুন" : "Toggle Currency"}
         >
-          <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono text-xs">{currency === "USD" ? "$" : "৳"}</span>
-          <span className="font-mono tracking-tight text-[11px]">{currency === "USD" ? "USD" : "BDT"}</span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono text-xs">{currency === "USD" ? "$" : currency === "EUR" ? "€" : "৳"}</span>
+          <span className="font-mono tracking-tight text-[11px]">{currency}</span>
         </button>
 
         {/* Theme Toggle */}

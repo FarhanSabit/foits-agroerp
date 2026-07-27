@@ -35,6 +35,7 @@ import {
 
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
+import { CurrencyManager } from "@agro-erp/shared-utils";
 import GoldenFlow from "./components/GoldenFlow";
 import ExecutiveDashboard from "./components/ExecutiveDashboard";
 import ProcurementModule from "./components/ProcurementModule";
@@ -113,6 +114,40 @@ export default function App() {
   const [dbError, setDbError] = useState<string | null>(null);
 
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [currencyRerender, setCurrencyRerender] = useState(0);
+
+  // Sync Currency from State
+  useEffect(() => {
+    const fetchRates = async () => {
+      try {
+        if (state.currency === "BDT") {
+          CurrencyManager.setCurrency("BDT", 1, "৳");
+          setCurrencyRerender(c => c + 1);
+          return;
+        }
+        
+        // Fetch real-time rate
+        const response = await fetch("https://api.exchangerate-api.com/v4/latest/BDT");
+        const data = await response.json();
+        
+        if (state.currency === "USD") {
+          const rate = data.rates.USD || 0.0091; // fallback
+          CurrencyManager.setCurrency("USD", rate, "$");
+        } else if (state.currency === "EUR") {
+          const rate = data.rates.EUR || 0.0084; // fallback
+          CurrencyManager.setCurrency("EUR", rate, "€");
+        }
+        setCurrencyRerender(c => c + 1);
+      } catch (err) {
+        console.error("Failed to fetch exchange rates", err);
+        // Fallback
+        if (state.currency === "USD") CurrencyManager.setCurrency("USD", 0.0091, "$");
+        if (state.currency === "EUR") CurrencyManager.setCurrency("EUR", 0.0084, "€");
+        setCurrencyRerender(c => c + 1);
+      }
+    };
+    fetchRates();
+  }, [state.currency]);
   
   // RBAC & Authentication State
   const [users, setUsers] = useState<UserAccount[]>(() => {

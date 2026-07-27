@@ -21,8 +21,11 @@ import {
   QrCode,
   PenTool,
   History,
-  ShieldCheck
+  ShieldCheck,
+  TrendingUp,
+  BarChart2
 } from "lucide-react";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell } from "recharts";
 import { downloadGRNPDF } from "../utils/pdfGenerator";
 import BarcodeScannerModal from "./BarcodeScannerModal";
 import { ESignatureModal } from "./ESignatureModal";
@@ -72,7 +75,7 @@ export default function ProcurementModule({
   isBangla,
   isLoading = false
 }: ProcurementModuleProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"suppliers" | "pr" | "rfq" | "po" | "grn">("suppliers");
+  const [activeSubTab, setActiveSubTab] = useState<"suppliers" | "pr" | "rfq" | "po" | "grn" | "analytics">("suppliers");
   const [searchTerm, setSearchTerm] = useState("");
   const [newPrQty, setNewPRQty] = useState(20000);
   const [newPrItem, setNewPRItem] = useState("RM001");
@@ -84,6 +87,10 @@ export default function ProcurementModule({
   // Quick Sort States for Procurement
   const [prSort, setPrSort] = useState<"number_asc" | "date_desc" | "date_asc" | "cost_desc" | "cost_asc">("date_desc");
   const [poSort, setPoSort] = useState<"number_asc" | "date_desc" | "date_asc" | "cost_desc" | "cost_asc" | "supplier_asc">("date_desc");
+
+  // Supplier View States
+  const [supplierDashboardTab, setSupplierDashboardTab] = useState<"summary" | "scatter" | "benchmark">("summary");
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
 
   // E-Signature Modal State
   const [isSigModalOpen, setIsSigModalOpen] = useState(false);
@@ -322,7 +329,8 @@ export default function ProcurementModule({
             { id: "pr", labelEn: "Purchase Requisitions", labelBn: "ক্রয় রিকুইজিশন", icon: FileText },
             { id: "rfq", labelEn: "RFQs & Bids", labelBn: "দরপত্র (RFQ)", icon: Mail },
             { id: "po", labelEn: "Purchase Orders", labelBn: "কার্যাদেশ (PO)", icon: FileCheck },
-            { id: "grn", labelEn: "Goods Receipt (GRN)", labelBn: "জিআরএন রশিদ", icon: FileCheck2 }
+            { id: "grn", labelEn: "Goods Receipt (GRN)", labelBn: "জিআরএন রশিদ", icon: FileCheck2 },
+            { id: "analytics", labelEn: "Analytics", labelBn: "অ্যানালিটিক্স", icon: TrendingUp }
           ] as const
         ).map((tab) => {
           const Icon = tab.icon;
@@ -431,9 +439,127 @@ export default function ProcurementModule({
         
         {/* Tab 1: Suppliers */}
         {activeSubTab === "suppliers" && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
+          <div className="flex flex-col space-y-4 p-4">
+            {/* Supplier Performance Widget */}
+            <div className="bg-white/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-white/10 rounded-xl p-4">
+              <div className="flex flex-wrap items-center justify-between mb-4 gap-4">
+                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 font-mono uppercase tracking-wider flex items-center gap-2">
+                  <BarChart2 className="h-4 w-4 text-indigo-500" />
+                  {isBangla ? "সরবরাহকারীর কর্মক্ষমতা সারসংক্ষেপ" : "Supplier Performance Summary"}
+                </h4>
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                  <button
+                    onClick={() => setSupplierDashboardTab("summary")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "summary" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                  >
+                    Summary
+                  </button>
+                  <button
+                    onClick={() => setSupplierDashboardTab("scatter")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "scatter" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                  >
+                    Price vs Lead Time
+                  </button>
+                  <button
+                    onClick={() => setSupplierDashboardTab("benchmark")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "benchmark" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                  >
+                    Benchmarking
+                  </button>
+                </div>
+              </div>
+
+              <div className="h-72">
+                {supplierDashboardTab === "summary" && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={filteredSuppliers} margin={{ top: 10, right: 30, left: 0, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#94a3b8" 
+                        fontSize={10} 
+                        angle={-25} 
+                        textAnchor="end"
+                        height={50} 
+                        interval={0}
+                      />
+                      <YAxis yAxisId="left" stroke="#94a3b8" fontSize={10} domain={[0, 5]} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" fontSize={10} domain={[0, 100]} />
+                      <RechartsTooltip 
+                        cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                        contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        itemStyle={{ color: '#fff', fontSize: '12px' }}
+                        labelStyle={{ color: '#cbd5e1', fontSize: '10px', marginBottom: '4px' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Bar onClick={(data) => setSelectedSupplierId(data.id)} className="cursor-pointer" yAxisId="left" dataKey="rating" name={isBangla ? "রেটিং (৫ এর মধ্যে)" : "Rating (out of 5)"} fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={20} />
+                      <Bar onClick={(data) => setSelectedSupplierId(data.id)} className="cursor-pointer" yAxisId="right" dataKey="onTimeDeliveryPercentage" name={isBangla ? "সময়মতো ডেলিভারি (%)" : "On-Time Delivery (%)"} fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+
+                {supplierDashboardTab === "scatter" && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                      <XAxis type="number" dataKey="leadTime" name="Lead Time (Days)" stroke="#94a3b8" fontSize={11} tickFormatter={v => `${v}d`} />
+                      <YAxis type="number" dataKey="price" name="Price per Unit" stroke="#94a3b8" fontSize={11} tickFormatter={v => `৳${v}`} />
+                      <ZAxis type="number" dataKey="rating" range={[50, 400]} name="Rating" />
+                      <RechartsTooltip 
+                        cursor={{strokeDasharray: '3 3'}}
+                        contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}
+                        formatter={(value, name) => {
+                          if (name === "Price per Unit") return [`৳${value}`, name];
+                          if (name === "Lead Time (Days)") return [`${value} days`, name];
+                          return [value, name];
+                        }}
+                        labelFormatter={() => ''}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Scatter name="Suppliers" data={filteredSuppliers.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        leadTime: Math.round(s.creditDays / 2 + s.rating * 2),
+                        price: Math.round(100 - s.rating * 5 + s.creditDays / 3),
+                        rating: s.rating
+                      }))} fill="#6366f1" onClick={(data) => setSelectedSupplierId(data.id)} className="cursor-pointer">
+                        {filteredSuppliers.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.rating > 4.5 ? "#10b981" : "#f59e0b"} />
+                        ))}
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                )}
+
+                {supplierDashboardTab === "benchmark" && (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart layout="vertical" data={filteredSuppliers.map(s => ({
+                        name: s.name,
+                        SupplierLeadTime: Math.round(s.creditDays / 2 + s.rating * 2),
+                        CategoryAvgLeadTime: 25 // mock category average
+                      }))} margin={{ top: 10, right: 30, left: 40, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                      <XAxis type="number" stroke="#94a3b8" fontSize={11} />
+                      <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} width={100} />
+                      <RechartsTooltip 
+                        contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                        itemStyle={{ color: '#fff', fontSize: '12px' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      <Bar dataKey="SupplierLeadTime" name="Supplier Lead Time (Days)" fill="#8b5cf6" barSize={15} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="CategoryAvgLeadTime" name="Category Avg Lead Time" fill="#cbd5e1" barSize={15} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              <p className="text-center text-[10px] text-slate-400 mt-2 italic">
+                {isBangla ? "বিস্তারিত স্কোরকার্ড দেখতে যেকোনো সরবরাহকারীর ডাটা পয়েন্টে ক্লিক করুন" : "Click on any supplier data point to view their detailed scorecard"}
+              </p>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-200/50 dark:border-white/10 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                 <tr>
                   <th className="p-3.5 pl-6">{isBangla ? "কোড" : "Code"}</th>
                   <th className="p-3.5">{isBangla ? "সরবরাহকারী" : "Supplier Name"}</th>
@@ -464,6 +590,7 @@ export default function ProcurementModule({
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
@@ -800,7 +927,35 @@ export default function ProcurementModule({
                 {isBangla ? "পারচেজ অর্ডার রেজিস্ট্রি (PO)" : "Purchase Orders Register"} ({state.purchaseOrders.length})
               </span>
               <div className="flex items-center gap-2 ml-auto">
-                <span className="text-[11px] font-mono text-slate-400 font-bold">
+                <button
+                  onClick={() => {
+                    const sortedPOs = [...state.purchaseOrders].sort((a, b) => {
+                      if (poSort === "number_asc") return a.poNumber.localeCompare(b.poNumber);
+                      if (poSort === "date_desc") return b.orderDate.localeCompare(a.orderDate);
+                      if (poSort === "date_asc") return a.orderDate.localeCompare(b.orderDate);
+                      if (poSort === "cost_desc") return (b.totalAmount || 0) - (a.totalAmount || 0);
+                      if (poSort === "cost_asc") return (a.totalAmount || 0) - (b.totalAmount || 0);
+                      if (poSort === "supplier_asc") return a.supplierName.localeCompare(b.supplierName);
+                      return 0;
+                    });
+                    const csvContent = "data:text/csv;charset=utf-8," + 
+                      "PO Number,Supplier,Order Date,Total Cost,Approval Status,Signed By,Delivery Status\n" +
+                      sortedPOs.map(po => `${po.poNumber},"${po.supplierName}",${po.orderDate},${po.totalAmount},${po.approvalStatus},${po.signedBy || ""},${po.deliveryStatus}`).join("\n");
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", `po_list_export_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="glass-button-indigo text-[10px] font-bold px-3 py-1.5 flex items-center gap-1.5 cursor-pointer"
+                  title="Export Filtered PO List for Audit"
+                >
+                  <Download className="h-3 w-3" />
+                  <span>{isBangla ? "এক্সপোর্ট অডিট রিপোর্ট" : "Export PO List"}</span>
+                </button>
+                <span className="text-[11px] font-mono text-slate-400 font-bold ml-2">
                   {isBangla ? "কুইক সর্ট:" : "Quick Sort:"}
                 </span>
                 <select
@@ -1058,7 +1213,157 @@ export default function ProcurementModule({
           </div>
         )}
 
+        {/* Tab 6: Analytics */}
+        {activeSubTab === "analytics" && (
+          <div className="p-4 bg-slate-50/50 dark:bg-slate-950/20">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4 font-mono uppercase tracking-wider flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-indigo-500" />
+              {isBangla ? "কাঁচামালের মূল্য প্রবণতা (গত ৬ মাস)" : "Raw Material Price Trends (Last 6 Months)"}
+            </h4>
+            <div className="h-80 bg-white/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-white/10 rounded-xl p-4">
+              {(() => {
+                const months = ["Feb", "Mar", "Apr", "May", "Jun", "Jul"];
+                const trendData = months.map((m, idx) => ({
+                  name: m,
+                  "RM001 Maize": 32 + (idx * 0.5) + (Math.random() * 2),
+                  "RM002 Soybean": 55 - (idx * 0.2) + (Math.random() * 3),
+                  "RM003 Vitamin": 115 + (idx * 1.5) + (Math.random() * 5),
+                }));
+                return (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} />
+                      <XAxis 
+                        dataKey="name" 
+                        stroke="#94a3b8" 
+                        fontSize={11} 
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis 
+                        stroke="#94a3b8" 
+                        fontSize={11} 
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => `৳${value.toFixed(0)}`}
+                      />
+                      <RechartsTooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          fontSize: '12px'
+                        }} 
+                        labelStyle={{ color: '#cbd5e1', marginBottom: '4px' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <Line type="monotone" dataKey="RM001 Maize" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Line type="monotone" dataKey="RM002 Soybean" stroke="#10b981" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                      <Line type="monotone" dataKey="RM003 Vitamin" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )
+              })()}
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* SUPPLIER SCORECARD MODAL */}
+      {selectedSupplierId && (() => {
+        const supplier = state.suppliers.find(s => s.id === selectedSupplierId);
+        if (!supplier) return null;
+        const supplierGRNs = state.goodsReceipts.filter(g => g.supplierName === supplier.name).map(g => ({
+          ...g,
+          qcStatus: g.items.every(i => i.qcPassed) ? "Pass" : g.items.some(i => i.qcPassed) ? "Partial" : "Fail"
+        }));
+        const supplierPOs = state.purchaseOrders.filter(po => po.supplierId === selectedSupplierId);
+        const totalSpend = supplierPOs.reduce((sum, po) => sum + (po.totalAmount || 0), 0);
+        const qcPassedCount = supplierGRNs.filter(g => g.qcStatus === "Pass").length;
+        const defectRate = supplierGRNs.length > 0 ? ((supplierGRNs.length - qcPassedCount) / supplierGRNs.length * 100).toFixed(1) : "0.0";
+        
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl shadow-xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+              <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h3 className="font-bold text-slate-800 dark:text-slate-100 font-mono text-sm uppercase tracking-wider flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-indigo-500" />
+                  {isBangla ? "সরবরাহকারী স্কোরকার্ড" : "Supplier Scorecard"} - {supplier.name}
+                </h3>
+                <button
+                  onClick={() => setSelectedSupplierId(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Avg Lead Time</p>
+                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{Math.round(supplier.creditDays / 2 + supplier.rating * 2)} days</p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Defect Rate</p>
+                    <p className="text-xl font-bold text-rose-600 dark:text-rose-400">{defectRate}%</p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Total Spend</p>
+                    <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">৳{totalSpend.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Overall Rating</p>
+                    <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{supplier.rating}/5.0</p>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 font-mono uppercase tracking-wider border-b border-slate-200 dark:border-white/10 pb-2">
+                    Historical Goods Receipts (GRN)
+                  </h4>
+                  {supplierGRNs.length > 0 ? (
+                    <div className="overflow-x-auto border border-slate-200/50 dark:border-white/10 rounded-xl">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 uppercase font-mono">
+                          <tr>
+                            <th className="p-3">GRN Number</th>
+                            <th className="p-3">Receipt Date</th>
+                            <th className="p-3">PO Reference</th>
+                            <th className="p-3">QC Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
+                          {supplierGRNs.map(grn => (
+                            <tr key={grn.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                              <td className="p-3 font-mono font-medium text-slate-800 dark:text-slate-200">{grn.grnNumber}</td>
+                              <td className="p-3 text-slate-600 dark:text-slate-400">{grn.receivedDate}</td>
+                              <td className="p-3 font-mono text-indigo-600 dark:text-indigo-400">{grn.poNumber}</td>
+                              <td className="p-3">
+                                <span className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                  grn.qcStatus === "Pass" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" :
+                                  grn.qcStatus === "Fail" ? "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400" :
+                                  "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
+                                }`}>
+                                  {grn.qcStatus}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">No historical GRNs found for this supplier.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* CAMERA SCANNING MODAL */}
       {scanningGRN && (

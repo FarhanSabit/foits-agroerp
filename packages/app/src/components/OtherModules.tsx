@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { z } from "zod";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import {
   Package,
   Globe,
@@ -57,7 +57,7 @@ export default function OtherModules({
   const [selectedChemBatch, setSelectedChemBatch] = useState<any | null>(null);
 
   // Inventory Filter, Quick Sort, and Unit Conversion State
-  const [inventoryFilter, setInventoryFilter] = useState<"all" | "low_stock" | "high_stock" | "expiry_warning" | "batch_serial" | "chemical_analysis">("all");
+  const [inventoryFilter, setInventoryFilter] = useState<"all" | "low_stock" | "high_stock" | "expiry_warning" | "batch_serial" | "chemical_analysis" | "warehouse_heatmap">("all");
   const [inventorySort, setInventorySort] = useState<
     "default" | "name_asc" | "name_desc" | "stock_asc" | "stock_desc" | "expiry_asc" | "expiry_desc" | "value_desc"
   >("default");
@@ -401,6 +401,18 @@ export default function OtherModules({
                 <TrendingUp className="h-3 w-3 text-indigo-400" />
                 <span>{isBangla ? "ল্যাব অ্যানালাইসিস" : "Lab Analysis"}</span>
               </button>
+
+              <button
+                onClick={() => setInventoryFilter("warehouse_heatmap")}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                  inventoryFilter === "warehouse_heatmap"
+                    ? "bg-indigo-600 text-white font-bold shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <MapPin className="h-3 w-3 text-indigo-400" />
+                <span>{isBangla ? "ওয়্যারহাউস হিটম্যাপ" : "Warehouse Heatmap"}</span>
+              </button>
             </div>
 
             {/* Quick Sort Dropdown */}
@@ -601,6 +613,91 @@ export default function OtherModules({
                         <Line type="monotone" dataKey="Fiber" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
                         <Line type="monotone" dataKey="Ash" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
                       </LineChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </div>
+            </div>
+          ) : inventoryFilter === "warehouse_heatmap" ? (
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden bg-indigo-50/10 dark:bg-indigo-900/[0.02] p-4 space-y-4 animate-in fade-in">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-500/20">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider font-mono">
+                    {isBangla ? "ওয়্যারহাউস ব্যবহার হিটম্যাপ" : "Warehouse Utilization Heatmap"}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isBangla ? "বিভিন্ন স্টোরেজ জোন জুড়ে বর্তমান স্টকের মাত্রা" : "Current stock levels across various storage zones"}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200/50 dark:border-white/10 p-4 h-[400px]">
+                {(() => {
+                  // Calculate utilization per warehouse
+                  const utilizationData = state.warehouses.map(w => {
+                    // Sum inventory stock for this warehouse
+                    const warehouseItems = state.inventory.filter(i => i.warehouseId === w.id);
+                    let currentStock = 0;
+                    warehouseItems.forEach(item => {
+                      // Convert roughly to same scale if necessary, assuming capacity is a large number of units
+                      currentStock += item.availableStock; 
+                    });
+                    
+                    const maxCapacity = w.capacity * 1000; // Capacity in MT -> convert to roughly KG/Units to match availableStock
+                    const utilizationPercentage = maxCapacity > 0 ? (currentStock / maxCapacity) * 100 : 0;
+                    
+                    return {
+                      name: w.name,
+                      capacity: maxCapacity,
+                      stock: currentStock,
+                      utilization: Math.round(utilizationPercentage),
+                      location: w.location
+                    };
+                  });
+                  
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={utilizationData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#94a3b8" 
+                          fontSize={11} 
+                          tickLine={false}
+                          axisLine={false}
+                          angle={-45}
+                          textAnchor="end"
+                        />
+                        <YAxis 
+                          stroke="#94a3b8" 
+                          fontSize={11} 
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip 
+                          cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '8px',
+                            color: '#fff',
+                            fontSize: '12px'
+                          }} 
+                          labelStyle={{ color: '#cbd5e1', marginBottom: '4px' }}
+                          formatter={(value, name, props) => {
+                            if (name === "stock") return [`${value.toLocaleString()} units (${props.payload.utilization}%)`, "Current Stock"];
+                            if (name === "capacity") return [`${value.toLocaleString()} units`, "Max Capacity"];
+                            return [value, name];
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                        <Bar dataKey="capacity" name="Max Capacity" fill="#cbd5e1" radius={[4, 4, 0, 0]} barSize={40} />
+                        <Bar dataKey="stock" name="Current Stock" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
+                      </BarChart>
                     </ResponsiveContainer>
                   );
                 })()}

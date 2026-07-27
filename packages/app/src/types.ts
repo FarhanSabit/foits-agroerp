@@ -63,6 +63,7 @@ export interface Supplier {
   address: string;
   creditDays: number;
   rating: number;
+  onTimeDeliveryPercentage: number;
   status: "Active" | "Inactive";
 }
 
@@ -372,16 +373,16 @@ export interface ERPState {
   forecastQty: number;
   selectedProductId: string;
   currentDemoStep: number; // 0-11 representing the Golden Flow step
-  currency?: "BDT" | "USD";
+  currency?: "BDT" | "USD" | "EUR";
 }
 
 // INITIAL SEED DATA
 export const initialSuppliers: Supplier[] = [
-  { id: "s1", code: "SUP001", name: "XYZ Grain Trading", type: SupplierType.RAW_MATERIAL, contactPerson: "Abul Kalam", phone: "01711-234567", email: "kalam@xyzgrain.com", address: "Khulna Port Area, Khulna", creditDays: 30, rating: 4.8, status: "Active" },
-  { id: "s2", code: "SUP002", name: "Dhaka Agri-Chemicals", type: SupplierType.RAW_MATERIAL, contactPerson: "Anisur Rahman", phone: "01819-876543", email: "info@dhakaagri.com", address: "Tejgaon I/A, Dhaka", creditDays: 15, rating: 4.5, status: "Active" },
-  { id: "s3", code: "SUP003", name: "Bengal Packaging Ind.", type: SupplierType.PACKAGING, contactPerson: "Sultana Begum", phone: "01911-555666", email: "sbegum@bengalpack.com", address: "Savar, Dhaka", creditDays: 45, rating: 4.2, status: "Active" },
-  { id: "s4", code: "SUP004", name: "Delta Machinery Spares", type: SupplierType.MACHINERY, contactPerson: "Zamil Akhtar", phone: "01552-111222", email: "zamil@deltamach.com", address: "Chittagong Port, CTG", creditDays: 30, rating: 4.6, status: "Active" },
-  { id: "s5", code: "SUP005", name: "Standard Logistics Services", type: SupplierType.SERVICES, contactPerson: "Kamrul Islam", phone: "01712-999000", email: "kamrul@stdlogistics.com", address: "Motijheel C/A, Dhaka", creditDays: 60, rating: 4.4, status: "Active" }
+  { id: "s1", code: "SUP001", name: "XYZ Grain Trading", type: SupplierType.RAW_MATERIAL, contactPerson: "Abul Kalam", phone: "01711-234567", email: "kalam@xyzgrain.com", address: "Khulna Port Area, Khulna", creditDays: 30, rating: 4.8, onTimeDeliveryPercentage: 98, status: "Active" },
+  { id: "s2", code: "SUP002", name: "Dhaka Agri-Chemicals", type: SupplierType.RAW_MATERIAL, contactPerson: "Anisur Rahman", phone: "01819-876543", email: "info@dhakaagri.com", address: "Tejgaon I/A, Dhaka", creditDays: 15, rating: 4.5, onTimeDeliveryPercentage: 92, status: "Active" },
+  { id: "s3", code: "SUP003", name: "Bengal Packaging Ind.", type: SupplierType.PACKAGING, contactPerson: "Sultana Begum", phone: "01911-555666", email: "sbegum@bengalpack.com", address: "Savar, Dhaka", creditDays: 45, rating: 4.2, onTimeDeliveryPercentage: 85, status: "Active" },
+  { id: "s4", code: "SUP004", name: "Delta Machinery Spares", type: SupplierType.MACHINERY, contactPerson: "Zamil Akhtar", phone: "01552-111222", email: "zamil@deltamach.com", address: "Chittagong Port, CTG", creditDays: 30, rating: 4.6, onTimeDeliveryPercentage: 95, status: "Active" },
+  { id: "s5", code: "SUP005", name: "Standard Logistics Services", type: SupplierType.SERVICES, contactPerson: "Kamrul Islam", phone: "01712-999000", email: "kamrul@stdlogistics.com", address: "Motijheel C/A, Dhaka", creditDays: 60, rating: 4.4, onTimeDeliveryPercentage: 89, status: "Active" }
 ];
 
 export const initialWarehouses: Warehouse[] = [

@@ -4,15 +4,40 @@
  */
 
 /**
- * Formats a numeric value into Bangladeshi Taka (BDT ৳) with proper grouping.
+ * Centralized CurrencyManager service for real-time currency conversion.
+ */
+export class CurrencyManager {
+  private static rateToBDT: number = 1;
+  private static symbol: string = "৳";
+  private static code: string = "BDT";
+
+  public static setCurrency(code: string, rateToBDT: number, symbol: string) {
+     this.code = code;
+     this.rateToBDT = rateToBDT;
+     this.symbol = symbol;
+  }
+  
+  public static getCode(): string {
+     return this.code;
+  }
+
+  public static format(amount: number): string {
+     const converted = amount / this.rateToBDT;
+     return `${this.symbol}${converted.toLocaleString("en-US", {
+       minimumFractionDigits: 0,
+       maximumFractionDigits: 0,
+     })}`;
+  }
+}
+
+/**
+ * Formats a numeric value into the active currency with proper grouping.
+ * Defaults to Bangladeshi Taka (BDT ৳) if no other currency is set.
  * @param amount Number to format
  * @returns Formatted currency string
  */
 export function formatBDT(amount: number): string {
-  return `৳ ${amount.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })}`;
+  return CurrencyManager.format(amount);
 }
 
 /**
