@@ -23,6 +23,7 @@ interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
   isBangla: boolean;
+  role: string;
 }
 
 export default function Sidebar({
@@ -30,7 +31,8 @@ export default function Sidebar({
   setCurrentTab,
   collapsed,
   setCollapsed,
-  isBangla
+  isBangla,
+  role
 }: SidebarProps) {
   const menuItems = [
     { id: "dashboard", labelEn: "Executive Dashboard", labelBn: "নির্বাহী ড্যাশবোর্ড", icon: BarChart3 },
@@ -45,6 +47,19 @@ export default function Sidebar({
     { id: "crm", labelEn: "CRM & Customers", labelBn: "সিআরএম ও কাস্টমার", icon: MessageCircle },
     { id: "support", labelEn: "Support & Tickets", labelBn: "সহায়তা ও টিকিট", icon: HelpCircle }
   ];
+
+  // Limit visibility based on user role
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (role === "SCM Manager") {
+      // SCM Manager focuses on logistics and supply chain
+      return !["finance", "hr", "crm"].includes(item.id);
+    }
+    if (role === "Warehouse Admin") {
+      // Warehouse Admin only handles storage, production, logistics, dashboard, and support
+      return !["finance", "hr", "crm", "commercial", "procurement", "sales"].includes(item.id);
+    }
+    return true; // CFO sees all
+  });
 
   return (
     <aside
@@ -75,7 +90,7 @@ export default function Sidebar({
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md shrink-0 focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none transition-colors"
+          className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md shrink-0 focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none transition-colors cursor-pointer"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -84,14 +99,14 @@ export default function Sidebar({
 
       {/* Navigation Links */}
       <nav className="flex-1 p-2 space-y-1 overflow-y-auto scrollbar-thin">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
           return (
             <button
               key={item.id}
               onClick={() => setCurrentTab(item.id)}
-              className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left text-sm transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none ${
+              className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left text-sm transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none cursor-pointer ${
                 isActive
                   ? "bg-indigo-600/90 dark:bg-indigo-500/90 text-white font-semibold shadow-lg shadow-indigo-500/15 border border-white/10"
                   : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/5"

@@ -87,12 +87,26 @@ export default function App() {
   const [dbError, setDbError] = useState<string | null>(null);
 
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [userRole, setUserRole] = useState<string>("CFO");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isBangla, setIsBangla] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+
+  // Redirect forbidden tabs when role changes
+  useEffect(() => {
+    if (userRole === "SCM Manager") {
+      if (["finance", "hr", "crm"].includes(currentTab)) {
+        setCurrentTab("dashboard");
+      }
+    } else if (userRole === "Warehouse Admin") {
+      if (["finance", "hr", "crm", "commercial", "procurement", "sales"].includes(currentTab)) {
+        setCurrentTab("dashboard");
+      }
+    }
+  }, [userRole, currentTab]);
 
   // 1. Fetch initial state from Neon DB via Express API
   useEffect(() => {
@@ -875,6 +889,7 @@ export default function App() {
             collapsed={sidebarCollapsed}
             setCollapsed={setSidebarCollapsed}
             isBangla={isBangla}
+            role={userRole}
           />
         </div>
 
@@ -893,6 +908,8 @@ export default function App() {
             onQuickAction={handleQuickAction}
             dbConnected={dbConnected}
             onResetDB={handleResetDB}
+            role={userRole}
+            onChangeRole={setUserRole}
           />
 
           {/* Golden Flow Timeline Bar */}
@@ -913,6 +930,7 @@ export default function App() {
                   onApprovePR={handleApprovePR}
                   onApprovePO={handleApprovePO}
                   isBangla={isBangla}
+                  role={userRole}
                 />
               )}
 

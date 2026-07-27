@@ -29,6 +29,8 @@ interface HeaderProps {
   onQuickAction: (action: string) => void;
   dbConnected: boolean;
   onResetDB: () => void;
+  role: string;
+  onChangeRole: (newRole: string) => void;
 }
 
 export default function Header({
@@ -41,7 +43,9 @@ export default function Header({
   triggerSearchOpen,
   onQuickAction,
   dbConnected,
-  onResetDB
+  onResetDB,
+  role,
+  onChangeRole
 }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -65,27 +69,34 @@ export default function Header({
     setIsBangla(!isBangla);
   };
 
+  // Role permissions for Quick action creators
+  const showPR = role === "CFO" || role === "SCM Manager";
+  const showRFQ = role === "CFO" || role === "SCM Manager";
+  const showPO = role === "CFO" || role === "SCM Manager";
+  const showWO = role === "CFO" || role === "SCM Manager" || role === "Warehouse Admin";
+  const showSO = role === "CFO";
+
   return (
-    <header className="sticky top-0 glass-header z-30 h-16 flex items-center justify-between px-6 transition-all duration-150">
+    <header className="sticky top-0 glass-header z-30 h-16 flex items-center justify-between px-6 transition-all duration-150 border-b border-slate-200/50 dark:border-white/10">
       
       {/* Left: Search Bar trigger */}
-      <div className="flex items-center gap-4 w-1/3">
+      <div className="flex items-center gap-4 w-1/4">
         <button
           onClick={triggerSearchOpen}
           className="w-full flex items-center justify-between gap-3 px-3 py-2 bg-white/30 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-white/10 transition-colors rounded-lg text-xs font-medium focus-visible:ring-2 focus-visible:ring-indigo-500 border border-slate-200/50 dark:border-white/10 outline-none"
         >
-          <div className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            <span>{isBangla ? "সার্চ করুন... (Ctrl + K)" : "Search everything... (Ctrl + K)"}</span>
+          <div className="flex items-center gap-2 truncate">
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="truncate">{isBangla ? "সার্চ করুন... (Ctrl + K)" : "Search... (Ctrl + K)"}</span>
           </div>
-          <span className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none tracking-tight">
+          <span className="hidden md:inline bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none tracking-tight shrink-0">
             ⌘K
           </span>
         </button>
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2.5 sm:gap-4">
         
         {/* Quick Create Dropdown */}
         <div className="relative">
@@ -95,10 +106,10 @@ export default function Header({
               setNotifOpen(false);
               setProfileOpen(false);
             }}
-            className="flex items-center gap-1.5 bg-indigo-600/90 hover:bg-indigo-600 text-white font-semibold text-xs px-3.5 py-2 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 border border-white/10 outline-none hover:shadow-lg shadow-indigo-500/15"
+            className="flex items-center gap-1.5 bg-indigo-600/90 hover:bg-indigo-600 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 border border-white/10 outline-none hover:shadow-lg shadow-indigo-500/15 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span>{isBangla ? "নতুন অ্যাকশন" : "Quick Action"}</span>
+            <span className="hidden sm:inline">{isBangla ? "নতুন অ্যাকশন" : "Quick Action"}</span>
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
           
@@ -107,66 +118,81 @@ export default function Header({
               <div className="px-3 py-2 border-b border-slate-200/50 dark:border-white/10 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-black/[0.02] dark:bg-white/[0.02]">
                 {isBangla ? "নতুন ট্রানজেকশন" : "Raise Transaction"}
               </div>
-              <button
-                onClick={() => {
-                  onQuickAction("create_pr");
-                  setQuickOpen(false);
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-              >
-                {isBangla ? "ক্রয় রিকুইজিশন (PR)" : "Purchase Requisition (PR)"}
-              </button>
-              <button
-                onClick={() => {
-                  onQuickAction("create_rfq");
-                  setQuickOpen(false);
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-              >
-                {isBangla ? "আরএফকিউ তৈরি (RFQ)" : "Generate RFQ"}
-              </button>
-              <button
-                onClick={() => {
-                  onQuickAction("create_po");
-                  setQuickOpen(false);
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-              >
-                {isBangla ? "পারচেজ অর্ডার (PO)" : "Purchase Order (PO)"}
-              </button>
-              <button
-                onClick={() => {
-                  onQuickAction("issue_wo");
-                  setQuickOpen(false);
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-              >
-                {isBangla ? "উৎপাদন ওয়ার্ক অর্ডার (WO)" : "Work Order (WO)"}
-              </button>
-              <button
-                onClick={() => {
-                  onQuickAction("create_so");
-                  setQuickOpen(false);
-                }}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-slate-700/60"
-              >
-                {isBangla ? "সেলস অর্ডার (SO)" : "Sales Order (SO)"}
-              </button>
+              
+              {showPR && (
+                <button
+                  onClick={() => {
+                    onQuickAction("create_pr");
+                    setQuickOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  {isBangla ? "ক্রয় রিকুইজিশন (PR)" : "Purchase Requisition (PR)"}
+                </button>
+              )}
+              
+              {showRFQ && (
+                <button
+                  onClick={() => {
+                    onQuickAction("create_rfq");
+                    setQuickOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  {isBangla ? "আরএফকিউ তৈরি (RFQ)" : "Generate RFQ"}
+                </button>
+              )}
+              
+              {showPO && (
+                <button
+                  onClick={() => {
+                    onQuickAction("create_po");
+                    setQuickOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  {isBangla ? "পারচেজ অর্ডার (PO)" : "Purchase Order (PO)"}
+                </button>
+              )}
+              
+              {showWO && (
+                <button
+                  onClick={() => {
+                    onQuickAction("issue_wo");
+                    setQuickOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
+                >
+                  {isBangla ? "উৎপাদন ওয়ার্ক অর্ডার (WO)" : "Work Order (WO)"}
+                </button>
+              )}
+              
+              {showSO && (
+                <button
+                  onClick={() => {
+                    onQuickAction("create_so");
+                    setQuickOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-slate-700/60"
+                >
+                  {isBangla ? "সেলস অর্ডার (SO)" : "Sales Order (SO)"}
+                </button>
+              )}
             </div>
           )}
         </div>
 
         {/* Database Status Indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200/50 dark:border-white/10 bg-slate-50 dark:bg-slate-800/30">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/50 dark:border-white/10 bg-slate-50 dark:bg-slate-800/30">
+          <div className="flex items-center gap-1">
             <span className={`h-2 w-2 rounded-full ${dbConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></span>
-            <span className="text-[10px] font-bold font-mono tracking-wide text-slate-500 dark:text-slate-400">
+            <span className="hidden md:inline text-[9px] font-bold font-mono tracking-wide text-slate-500 dark:text-slate-400">
               {isBangla ? "নিওন পিজি" : "NEON PG"}
             </span>
           </div>
           <button
             onClick={onResetDB}
-            className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors rounded hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+            className="p-0.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors rounded hover:bg-slate-200/50 dark:hover:bg-slate-700/50 cursor-pointer"
             title={isBangla ? "ডাটাবেজ রি-সিড করুন" : "Re-seed Dummy Data"}
           >
             <RefreshCw className="h-3 w-3" />
@@ -176,17 +202,17 @@ export default function Header({
         {/* Language Toggle */}
         <button
           onClick={toggleLanguage}
-          className="p-2 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none flex items-center gap-1.5 text-xs font-semibold"
+          className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none flex items-center gap-1 text-xs font-semibold cursor-pointer"
           title={isBangla ? "Switch to English" : "বাংলায় পরিবর্তন করুন"}
         >
           <Languages className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-          <span className="font-mono tracking-tight">{isBangla ? "EN" : "বাংলা"}</span>
+          <span className="font-mono tracking-tight text-[11px]">{isBangla ? "EN" : "বাংলা"}</span>
         </button>
 
         {/* Theme Toggle */}
         <button
           onClick={() => setDarkMode(!darkMode)}
-          className="p-2 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none"
+          className="p-2 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none cursor-pointer"
           title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
           {darkMode ? <Sun className="h-4.5 w-4.5 text-amber-500" /> : <Moon className="h-4.5 w-4.5" />}
@@ -200,7 +226,7 @@ export default function Header({
               setProfileOpen(false);
               setQuickOpen(false);
             }}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none relative"
+            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none relative cursor-pointer"
             title="Notifications"
           >
             <Bell className="h-4.5 w-4.5" />
@@ -266,8 +292,33 @@ export default function Header({
           )}
         </div>
 
+        {/* Vertical Divider before Role Selector */}
+        <div className="hidden sm:block h-6 w-px bg-slate-200 dark:bg-slate-800/80"></div>
+
+        {/* Role Switcher Pill Group */}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-0.5 rounded-lg border border-slate-200/40 dark:border-white/5 shrink-0 font-sans">
+          {[
+            { id: "CFO", labelEn: "CFO", labelBn: "সিএফও" },
+            { id: "SCM Manager", labelEn: "SCM", labelBn: "এসসিএম" },
+            { id: "Warehouse Admin", labelEn: "WH Admin", labelBn: "স্টোর" }
+          ].map((r) => (
+            <button
+              key={r.id}
+              onClick={() => onChangeRole(r.id)}
+              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                role === r.id
+                  ? "bg-indigo-600 text-white shadow-sm font-bold"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+              title={isBangla ? r.labelBn : r.labelEn}
+            >
+              {isBangla ? r.labelBn : r.labelEn}
+            </button>
+          ))}
+        </div>
+
         {/* Vertical Divider */}
-        <div className="h-6 w-px bg-slate-200 dark:bg-slate-800/80"></div>
+        <div className="hidden sm:block h-6 w-px bg-slate-200 dark:bg-slate-800/80"></div>
 
         {/* User Profile */}
         <div className="relative">
@@ -277,21 +328,29 @@ export default function Header({
               setNotifOpen(false);
               setQuickOpen(false);
             }}
-            className="flex items-center gap-2 text-left hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 p-1.5 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none"
+            className="flex items-center gap-2 text-left hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 p-1.5 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none cursor-pointer"
             title="User Settings"
           >
-            <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm tracking-wide">
-              AR
+            <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm tracking-wide shrink-0">
+              {role === "CFO" ? "AR" : role === "SCM Manager" ? "MR" : "SI"}
             </div>
             <div className="hidden md:flex flex-col">
               <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-none">
-                Dr. Ahsan Rahman
+                {role === "CFO" 
+                  ? "Dr. Ahsan Rahman" 
+                  : role === "SCM Manager" 
+                  ? "M. Rahman" 
+                  : "S. Islam"}
               </span>
-              <span className="text-[10px] font-mono text-slate-400 mt-0.5">
-                CFO (Admin)
+              <span className="text-[10px] font-mono text-slate-400 mt-0.5 leading-none">
+                {role === "CFO" 
+                  ? (isBangla ? "সিএফও (এডমিন)" : "CFO (Admin)") 
+                  : role === "SCM Manager" 
+                  ? (isBangla ? "এসসিএম ব্যবস্থাপক" : "SCM Manager") 
+                  : (isBangla ? "গুদাম প্রশাসক" : "Warehouse Admin")}
               </span>
             </div>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
           </button>
 
           {profileOpen && (
@@ -306,19 +365,19 @@ export default function Header({
               </div>
               <button
                 onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
+                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
               >
                 {isBangla ? "ব্যবহারকারী প্রোফাইল" : "Profile Settings"}
               </button>
               <button
                 onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
+                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
               >
                 {isBangla ? "সিকিউরিটি ও লগস" : "Security & Logs"}
               </button>
               <button
                 onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-colors border-t border-slate-100 dark:border-slate-700 flex items-center gap-2"
+                className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-colors border-t border-slate-100 dark:border-slate-700 flex items-center gap-2 cursor-pointer"
               >
                 <LogOut className="h-4 w-4" />
                 <span>{isBangla ? "লগ আউট" : "Sign Out"}</span>
