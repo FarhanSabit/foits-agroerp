@@ -1,0 +1,18 @@
+{
+  "short_name": "Agro ERP",
+  "name": "OITS Dhaka - Agro ERP Enterprise Monorepo",
+  "description": "Enterprise Agriculture ERP for Field Procurement, Warehouse Management, Sales, and Logistics",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "display": "standalone",
+  "orientation": "any",
+  "categories": ["business", "productivity", "utilities"]
+}

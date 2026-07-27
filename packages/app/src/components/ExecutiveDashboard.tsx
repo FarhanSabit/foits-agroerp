@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   TrendingUp,
   Award,
@@ -10,9 +10,56 @@ import {
   Clock,
   CheckCircle,
   Truck,
-  Users
+  Users,
+  GripVertical,
+  PenTool
 } from "lucide-react";
+import { ESignatureModal } from "./ESignatureModal";
+import VoiceCommandControl from "./VoiceCommandControl";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { ERPState, DocStatus, AccountType } from "../types";
+
+// Sortable Widget Wrapper Component
+function SortableWidget({ id, children }: { id: string; children: React.ReactNode; key?: React.Key }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.75 : 1
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative group">
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute top-3 right-3 z-20 p-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-400 opacity-0 group-hover:opacity-100 hover:text-slate-600 dark:hover:text-slate-200 cursor-grab active:cursor-grabbing transition-opacity shadow-xs border border-slate-200/50 dark:border-white/10"
+        title="Drag to reorder layout"
+      >
+        <GripVertical className="h-4 w-4" />
+      </div>
+      {children}
+    </div>
+  );
+}
 import {
   ResponsiveContainer,
   AreaChart,
@@ -28,12 +75,13 @@ import {
 
 interface ExecutiveDashboardProps {
   state: ERPState;
-  onApprovePR: (id: string) => void;
-  onApprovePO: (id: string) => void;
+  onApprovePR: (id: string, signatureDataUrl?: string, signatoryName?: string) => void;
+  onApprovePO: (id: string, signatureDataUrl?: string, signatoryName?: string) => void;
   isBangla: boolean;
   role: string;
   darkMode?: boolean;
   isLoading?: boolean;
+  onNavigateTab?: (tab: string) => void;
 }
 
 const Skeleton = ({ className }: { className?: string }) => (
@@ -47,9 +95,31 @@ export default function ExecutiveDashboard({
   isBangla,
   role,
   darkMode = false,
-  isLoading = false
+  isLoading = false,
+  onNavigateTab
 }: ExecutiveDashboardProps) {
   const [roleMode, setRoleMode] = useState<"ceo" | "cfo" | "coo">("ceo");
+
+  // E-Signature Modal State
+  const [isSigModalOpen, setIsSigModalOpen] = useState(false);
+  const [sigTargetType, setSigTargetType] = useState<"pr" | "po">("pr");
+  const [sigTargetId, setSigTargetId] = useState<string>("");
+  const [sigDocTitle, setSigDocTitle] = useState<string>("");
+
+  const handleSignatureConfirm = (dataUrl: string, signatoryName: string, signatoryRole: string) => {
+    if (sigTargetType === "pr") {
+      onApprovePR(sigTargetId, dataUrl, signatoryName);
+    } else {
+      onApprovePO(sigTargetId, dataUrl, signatoryName);
+    }
+  };
+
+  const openSigModal = (type: "pr" | "po", id: string, title: string) => {
+    setSigTargetType(type);
+    setSigTargetId(id);
+    setSigDocTitle(title);
+    setIsSigModalOpen(true);
+  };
   const [selectedMonthTransactions, setSelectedMonthTransactions] = useState<{
     month: string;
     transactions: Array<{
@@ -61,6 +131,37 @@ export default function ExecutiveDashboard({
       amount: number;
     }>;
   } | null>(null);
+
+  // UserConfig widget layout persistence
+  const [widgetOrder, setWidgetOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("userConfig_dashboardLayout");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // fallback
+    }
+    return ["kpi-metrics", "primary-chart", "pending-approvals", "operational-health"];
+  });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setWidgetOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        try {
+          localStorage.setItem("userConfig_dashboardLayout", JSON.stringify(newOrder));
+        } catch (e) {}
+        return newOrder;
+      });
+    }
+  };
 
   // Dynamic colors based on theme
   const gridStroke = darkMode ? "#334155" : "#e2e8f0";
@@ -335,29 +436,44 @@ export default function ExecutiveDashboard({
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {isBangla
-              ? "রিয়েল-টাইম এন্টারপ্রাইজ কার্যকারিতা রিপোর্টিং"
-              : "Real-time enterprise performance metrics & analytical intelligence"}
+              ? "রিয়েল-টাইম এন্টারপ্রাইজ কার্যকারিতা রিপোর্টিং (ড্র্যাগ-এন্ড-ড্রপ লেআউট)"
+              : "Real-time enterprise performance metrics & analytical intelligence (Drag-and-Drop Customizable)"}
           </p>
         </div>
-        <div className="bg-white/45 dark:bg-white/5 backdrop-blur-xs border border-slate-200/50 dark:border-white/10 p-1 rounded-xl flex items-center gap-1">
-          {(["ceo", "cfo", "coo"] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setRoleMode(mode)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
-                roleMode === mode
-                  ? "bg-indigo-600/90 dark:bg-indigo-500/90 text-white font-bold shadow-md shadow-indigo-500/10 border border-white/10"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-white/5"
-              }`}
-            >
-              {mode === "ceo" ? (isBangla ? "সিইও ডেক" : "CEO Board") : mode === "cfo" ? (isBangla ? "সিএফও ডেক" : "CFO Board") : (isBangla ? "সিওও ডেক" : "COO Board")}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* Voice Command Control */}
+          <VoiceCommandControl
+            onNavigateTab={(tab) => onNavigateTab && onNavigateTab(tab)}
+            isBangla={isBangla}
+          />
+
+          <div className="bg-white/45 dark:bg-white/5 backdrop-blur-xs border border-slate-200/50 dark:border-white/10 p-1 rounded-xl flex items-center gap-1">
+            {(["ceo", "cfo", "coo"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setRoleMode(mode)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                  roleMode === mode
+                    ? "bg-indigo-600/90 dark:bg-indigo-500/90 text-white font-bold shadow-md shadow-indigo-500/10 border border-white/10"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/50 dark:hover:bg-white/5"
+                }`}
+              >
+                {mode === "ceo" ? (isBangla ? "সিইও ডেক" : "CEO Board") : mode === "cfo" ? (isBangla ? "সিএফও ডেক" : "CFO Board") : (isBangla ? "সিওও ডেক" : "COO Board")}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={widgetOrder} strategy={rectSortingStrategy}>
+          <div className="space-y-6">
+            {widgetOrder.map((widgetId) => {
+              if (widgetId === "kpi-metrics") {
+                return (
+                  <SortableWidget key="kpi-metrics" id="kpi-metrics">
+                    {/* KPI Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         
         {/* Sales Card */}
         <div className="glass-card p-4 hover:scale-[1.02] hover:shadow-xl transition-all relative overflow-hidden flex flex-col justify-between">
@@ -485,7 +601,13 @@ export default function ExecutiveDashboard({
         </div>
 
       </div>
+    </SortableWidget>
+  );
+}
 
+if (widgetId === "primary-chart") {
+  return (
+    <SortableWidget key="primary-chart" id="primary-chart">
       {/* Main Charts section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -555,7 +677,13 @@ export default function ExecutiveDashboard({
         </div>
 
       </div>
+    </SortableWidget>
+  );
+}
 
+if (widgetId === "pending-approvals") {
+  return (
+    <SortableWidget key="pending-approvals" id="pending-approvals">
       {/* Row 3: Actionable Items & Approval Queue / Warehouse Status */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -609,10 +737,12 @@ export default function ExecutiveDashboard({
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => onApprovePR(pr.id)}
-                        className="glass-button-green text-xs px-4 py-2 cursor-pointer"
+                        onClick={() => openSigModal("pr", pr.id, `Requisition Approval (${pr.prNumber})`)}
+                        className="glass-button-green text-xs px-3.5 py-2 cursor-pointer flex items-center gap-1.5"
+                        title="E-Sign and Approve Requisition"
                       >
-                        {isBangla ? "অনুমোদন দিন" : "Approve Funds"}
+                        <PenTool className="h-3.5 w-3.5" />
+                        <span>{isBangla ? "ই-স্বাক্ষর ও অনুমোদন" : "Sign & Approve"}</span>
                       </button>
                     </div>
                   </div>
@@ -642,10 +772,12 @@ export default function ExecutiveDashboard({
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => onApprovePO(po.id)}
-                        className="glass-button-green text-xs px-4 py-2 cursor-pointer"
+                        onClick={() => openSigModal("po", po.id, `Purchase Order Authorization (${po.poNumber})`)}
+                        className="glass-button-green text-xs px-3.5 py-2 cursor-pointer flex items-center gap-1.5"
+                        title="E-Sign and Authorize PO"
                       >
-                        {isBangla ? "কার্যাদেশ অনুমোদন" : "Authorize Purchase"}
+                        <PenTool className="h-3.5 w-3.5" />
+                        <span>{isBangla ? "ই-স্বাক্ষর ও অনুমোদন" : "Sign & Authorize"}</span>
                       </button>
                     </div>
                   </div>
@@ -826,6 +958,15 @@ export default function ExecutiveDashboard({
         </div>
 
       </div>
+    </SortableWidget>
+  );
+}
+
+              return null;
+            })}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {selectedMonthTransactions && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
@@ -889,6 +1030,15 @@ export default function ExecutiveDashboard({
         </div>
       )}
 
+      {/* E-SIGNATURE APPROVAL MODAL */}
+      <ESignatureModal
+        isOpen={isSigModalOpen}
+        onClose={() => setIsSigModalOpen(false)}
+        onConfirmSignature={handleSignatureConfirm}
+        documentTitle={sigDocTitle}
+        signatoryRole="Executive / CFO / CEO"
+        isBangla={isBangla}
+      />
     </div>
   );
 }

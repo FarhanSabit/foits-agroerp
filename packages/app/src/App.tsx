@@ -57,7 +57,27 @@ import {
   Cpu
 } from "lucide-react";
 
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escapedQuery})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <strong key={i} className="font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-500/20 dark:bg-indigo-500/30 px-1 py-0.5 rounded text-[11px]">
+            {part}
+          </strong>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
 export default function App() {
+
   // Global ERP State initialization
   const [state, setState] = useState<ERPState>({
     suppliers: initialSuppliers,
@@ -248,7 +268,55 @@ export default function App() {
     if (currentTab !== "production") setCurrentTab("production");
   };
 
-  // Step 2: Auto Generate PR from Shortage
+  // Revert PR or PO version snapshot
+  const handleRevertVersion = (docType: "PR" | "PO", docId: string, versionNumber: number) => {
+    setState((prev) => {
+      if (docType === "PR") {
+        const targetPR = prev.requisitions.find(r => r.id === docId);
+        if (!targetPR || !targetPR.versions) return prev;
+        const ver = targetPR.versions.find(v => v.versionNumber === versionNumber);
+        if (!ver || !ver.snapshot) return prev;
+
+        return {
+          ...prev,
+          requisitions: prev.requisitions.map(r => r.id === docId ? { ...ver.snapshot, versions: targetPR.versions } : r),
+          activities: [
+            {
+              timestamp: new Date().toISOString().slice(0, 16).replace("T", " "),
+              user: userRole || "SCM Manager",
+              action: `Reverted PR to Version ${versionNumber}`,
+              details: `PR ${targetPR.prNumber} restored to state from v${versionNumber}`
+            },
+            ...prev.activities
+          ]
+        };
+      } else {
+        const targetPO = prev.purchaseOrders.find(p => p.id === docId);
+        if (!targetPO || !targetPO.versions) return prev;
+        const ver = targetPO.versions.find(v => v.versionNumber === versionNumber);
+        if (!ver || !ver.snapshot) return prev;
+
+        return {
+          ...prev,
+          purchaseOrders: prev.purchaseOrders.map(p => p.id === docId ? { ...ver.snapshot, versions: targetPO.versions } : p),
+          activities: [
+            {
+              timestamp: new Date().toISOString().slice(0, 16).replace("T", " "),
+              user: userRole || "SCM Manager",
+              action: `Reverted PO to Version ${versionNumber}`,
+              details: `PO ${targetPO.poNumber} restored to state from v${versionNumber}`
+            },
+            ...prev.activities
+          ]
+        };
+      }
+    });
+  };
+
+  const handleAutoGeneratePreventivePR = (itemCode: string, qty: number) => {
+    handleRaisePR(itemCode, qty);
+    setCurrentTab("procurement");
+  };
   const handleRaisePR = (itemCode: string, qty: number) => {
     setState((prev) => {
       const item = prev.inventory.find((i) => i.code === itemCode);
@@ -301,19 +369,24 @@ export default function App() {
   };
 
   // Step 3: Approve Requisition (CFO Mode)
-  const handleApprovePR = (id: string) => {
+  const handleApprovePR = (id: string, signatureDataUrl?: string, signatoryName?: string) => {
     setState((prev) => {
+      const todayStr = new Date().toISOString().split("T")[0];
       const updatedPRs = prev.requisitions.map((r) =>
         r.id === id
           ? {
               ...r,
               status: DocStatus.APPROVED,
+              signatureUrl: signatureDataUrl || r.signatureUrl,
+              signedBy: signatoryName || "Dr. Ahsan Rahman",
+              signedDate: todayStr,
               approvalChain: [
                 {
-                  approver: "Dr. Ahsan Rahman",
+                  approver: signatoryName || "Dr. Ahsan Rahman",
                   role: "CFO",
-                  actionDate: "2026-07-26",
-                  comments: "Budget authorized. Proceed with Supplier RFQ."
+                  actionDate: todayStr,
+                  comments: "Budget authorized with E-Signature.",
+                  signatureUrl: signatureDataUrl
                 }
               ]
             }
@@ -323,9 +396,9 @@ export default function App() {
       const logs = [
         {
           timestamp: "2026-07-26 18:43",
-          user: "Ahsan Rahman",
-          action: "PR Budget Authorized",
-          details: `PR-2026-0041 approved. Fund allocations posted successfully.`
+          user: signatoryName || "Ahsan Rahman",
+          action: "PR Budget Authorized (E-Signed)",
+          details: `PR-2026-0041 approved with attached manager e-signature.`
         },
         ...prev.activities
       ];
@@ -333,8 +406,8 @@ export default function App() {
       const notifications = [
         {
           id: `notif-app-${Date.now()}`,
-          title: "PR Approved by CFO",
-          message: `PR-2026-0041 is approved. RFQ door is unlocked.`,
+          title: "PR E-Signed & Approved",
+          message: `PR-2026-0041 was signed by ${signatoryName || "CFO"}. RFQ door is unlocked.`,
           time: "Just now",
           category: "Approval" as const,
           read: false
@@ -454,18 +527,27 @@ export default function App() {
   };
 
   // Step 6: Approve Purchase Order
-  const handleApprovePO = (id: string) => {
+  const handleApprovePO = (id: string, signatureDataUrl?: string, signatoryName?: string) => {
     setState((prev) => {
+      const todayStr = new Date().toISOString().split("T")[0];
       const updatedPOs = prev.purchaseOrders.map((p) =>
-        p.id === id ? { ...p, approvalStatus: DocStatus.APPROVED } : p
+        p.id === id
+          ? {
+              ...p,
+              approvalStatus: DocStatus.APPROVED,
+              signatureUrl: signatureDataUrl || p.signatureUrl,
+              signedBy: signatoryName || "Dr. Ahsan Rahman",
+              signedDate: todayStr
+            }
+          : p
       );
 
       const logs = [
         {
           timestamp: "2026-07-26 18:46",
-          user: "Ahsan Rahman",
-          action: "PO Approved",
-          details: `PO-2026-0092 signed & dispatched to supplier portal.`
+          user: signatoryName || "Ahsan Rahman",
+          action: "PO Approved (E-Signed)",
+          details: `PO approved with attached manager e-signature.`
         },
         ...prev.activities
       ];
@@ -480,17 +562,21 @@ export default function App() {
   };
 
   // Step 7: Post GRN (Goods Receipt) & QC
-  const handlePostGRN = (poNumber: string, receivedItems: any[]) => {
+  const handlePostGRN = (poNumber: string, receivedItems: any[], signatureDataUrl?: string, signatoryName?: string) => {
     setState((prev) => {
       const po = prev.purchaseOrders.find((p) => p.poNumber === poNumber) || prev.purchaseOrders[0];
+      const todayStr = new Date().toISOString().split("T")[0];
 
       const newGRN: GoodsReceipt = {
         id: `grn-${Date.now()}`,
         grnNumber: "GRN-2026-0112",
         poNumber,
         supplierName: po.supplierName,
-        receivedDate: "2026-07-26",
-        receivedBy: "Sultana Begum",
+        receivedDate: todayStr,
+        receivedBy: signatoryName || "Sultana Begum",
+        signatureUrl: signatureDataUrl,
+        signedBy: signatoryName || "Sultana Begum",
+        signedDate: todayStr,
         items: receivedItems.map((i) => ({
           itemCode: i.itemCode,
           itemName: i.itemName,
@@ -1011,6 +1097,7 @@ export default function App() {
             onChangeRole={setUserRole}
             currency={state.currency || "BDT"}
             onToggleCurrency={(curr) => setState((prev) => ({ ...prev, currency: curr }))}
+            onAutoGeneratePreventivePR={handleAutoGeneratePreventivePR}
           />
 
           {/* Golden Flow Timeline Bar */}
@@ -1033,6 +1120,7 @@ export default function App() {
                   isBangla={isBangla}
                   role={userRole}
                   darkMode={darkMode}
+                  onNavigateTab={(tab) => setCurrentTab(tab)}
                 />
               )}
 
@@ -1043,7 +1131,10 @@ export default function App() {
                   onRaiseRFQ={handleRaiseRFQ}
                   onAwardSupplier={handleAwardSupplier}
                   onPostGRN={handlePostGRN}
+                  onApprovePR={handleApprovePR}
+                  onApprovePO={handleApprovePO}
                   onLinkInvoiceToGRN={handleLinkInvoiceToGRN}
+                  onRevertVersion={handleRevertVersion}
                   isBangla={isBangla}
                   isLoading={isLoading}
                 />
@@ -1154,8 +1245,12 @@ export default function App() {
                         <span className="text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 px-1.5 py-0.5 rounded mr-2">
                           {res.category}
                         </span>
-                        <span className="font-bold text-slate-800 dark:text-slate-100">{res.name}</span>
-                        <span className="text-slate-400 text-[11px] block mt-0.5">{res.details}</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                          <HighlightText text={res.name} query={globalSearchQuery} />
+                        </span>
+                        <span className="text-slate-400 text-[11px] block mt-0.5">
+                          <HighlightText text={res.details} query={globalSearchQuery} />
+                        </span>
                       </div>
                       <Command className="h-4 w-4 text-slate-400" />
                     </button>

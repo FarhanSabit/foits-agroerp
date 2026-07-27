@@ -97,6 +97,21 @@ export interface StockBatch {
   manufactureDate: string;
   expiryDate: string;
   warehouseId: string;
+  serialNumbers?: string[];
+  origin?: string;
+  originSupplierOrFarm?: string;
+  currentLocation?: string;
+  locationZone?: string;
+  qcPassCertificate?: string;
+  status?: "Active" | "Quarantine" | "Expiring Soon" | "Expired" | "Depleted";
+}
+
+export interface DocVersion<T> {
+  version: number;
+  timestamp: string;
+  modifiedBy: string;
+  changeSummary: string;
+  dataSnapshot: T;
 }
 
 export interface PurchaseRequisition {
@@ -119,7 +134,12 @@ export interface PurchaseRequisition {
     role: string;
     actionDate: string;
     comments: string;
+    signatureUrl?: string;
   }[];
+  signatureUrl?: string;
+  signedBy?: string;
+  signedDate?: string;
+  versions?: DocVersion<PurchaseRequisition>[];
 }
 
 export interface RFQ {
@@ -158,6 +178,10 @@ export interface PurchaseOrder {
     totalPrice: number;
   }[];
   deliveryStatus: "Pending" | "Partially Received" | "Received";
+  signatureUrl?: string;
+  signedBy?: string;
+  signedDate?: string;
+  versions?: DocVersion<PurchaseOrder>[];
 }
 
 export interface GoodsReceipt {
@@ -178,6 +202,9 @@ export interface GoodsReceipt {
   }[];
   postedToInventory: boolean;
   scannedInvoiceUrl?: string;
+  signatureUrl?: string;
+  signedBy?: string;
+  signedDate?: string;
 }
 
 export interface ProductBOM {
@@ -222,6 +249,9 @@ export interface SalesOrder {
   totalAmount: number;
   status: DocStatus;
   deliveryStatus: "Pending" | "Dispatched" | "Delivered";
+  signatureUrl?: string;
+  signedBy?: string;
+  signedDate?: string;
 }
 
 export interface DeliveryTrip {
@@ -301,6 +331,15 @@ export interface Notification {
   time: string;
   category: "Approval" | "Inventory" | "Production" | "Finance" | "System";
   read: boolean;
+  stockOutPrediction?: {
+    itemCode: string;
+    itemName: string;
+    avgDailyBurnKg: number;
+    currentStockKg: number;
+    daysRemaining: number;
+    suggestedReorderKg: number;
+    riskLevel: "Critical" | "High" | "Medium";
+  };
 }
 
 // Live Demo State Holder
@@ -354,9 +393,11 @@ export const initialInventory: InventoryItem[] = [
 ];
 
 export const initialBatches: StockBatch[] = [
-  { id: "b1", itemCode: "FG001", batchNumber: "BAT-BR-2607A", quantity: 1000, manufactureDate: "2026-07-20", expiryDate: "2027-01-20", warehouseId: "w2" },
-  { id: "b2", itemCode: "FG001", batchNumber: "BAT-BR-2607B", quantity: 500, manufactureDate: "2026-07-22", expiryDate: "2027-01-22", warehouseId: "w2" },
-  { id: "b3", itemCode: "FG002", batchNumber: "BAT-FF-2606A", quantity: 800, manufactureDate: "2026-06-15", expiryDate: "2026-12-15", warehouseId: "w2" }
+  { id: "b1", itemCode: "FG001", batchNumber: "BAT-BR-2607A", quantity: 1000, manufactureDate: "2026-07-20", expiryDate: "2027-01-20", warehouseId: "w2", serialNumbers: ["SN-BR-001", "SN-BR-002", "SN-BR-003"], originSupplierOrFarm: "Mymensingh Feed Mill #1", locationZone: "FG Depot - Bay A1", qcPassCertificate: "QC-2026-FG881", status: "Active" },
+  { id: "b2", itemCode: "FG001", batchNumber: "BAT-BR-2607B", quantity: 500, manufactureDate: "2026-07-22", expiryDate: "2026-08-10", warehouseId: "w2", serialNumbers: ["SN-BR-501", "SN-BR-502"], originSupplierOrFarm: "Mymensingh Feed Mill #1", locationZone: "FG Depot - Bay A2", qcPassCertificate: "QC-2026-FG892", status: "Expiring Soon" }, // Expiring in 15 days
+  { id: "b3", itemCode: "FG002", batchNumber: "BAT-FF-2606A", quantity: 800, manufactureDate: "2026-06-15", expiryDate: "2026-08-25", warehouseId: "w2", serialNumbers: ["SN-FF-101", "SN-FF-102"], originSupplierOrFarm: "Gazipur Aqua Extruder Plant", locationZone: "FG Depot - Bay B4", qcPassCertificate: "QC-2026-FF401", status: "Active" },
+  { id: "b4", itemCode: "RM003", batchNumber: "BAT-VIT-2602A", quantity: 2000, manufactureDate: "2026-02-10", expiryDate: "2026-07-15", warehouseId: "w1", serialNumbers: ["SN-VIT-001", "SN-VIT-002"], originSupplierOrFarm: "Dhaka Agri-Chemicals (SUP002)", locationZone: "Silo Store - Bay V1", qcPassCertificate: "QC-2026-VT102", status: "Expired" },
+  { id: "b5", itemCode: "RM001", batchNumber: "BAT-MZ-2605C", quantity: 15000, manufactureDate: "2026-05-01", expiryDate: "2026-09-15", warehouseId: "w1", serialNumbers: ["SN-MZ-801", "SN-MZ-802"], originSupplierOrFarm: "XYZ Grain Trading Co-op #4 (Khulna)", locationZone: "Silo 1 - Main Hopper", qcPassCertificate: "QC-2026-MZ910", status: "Active" }
 ];
 
 export const productBOMs: ProductBOM[] = [
@@ -513,7 +554,54 @@ export const initialActivities: ActivityLog[] = [
 ];
 
 export const initialNotifications: Notification[] = [
-  { id: "n1", title: "Low Stock Alert", message: "Maize (Yellow Grade A) stock is below safety levels (40,000 KG left)", time: "1 hr ago", category: "Inventory", read: false },
-  { id: "n2", title: "PR Pending Approval", message: "Sultana Begum raised PR-2026-0041 for 20,000 KG Maize", time: "2 hrs ago", category: "Approval", read: false },
-  { id: "n3", title: "Daily Sales Target Complete", message: "Revenue target surpassed for Gazipur Sector", time: "4 hrs ago", category: "Finance", read: true }
+  {
+    id: "n1",
+    title: "Low Stock Alert: Maize (RM001)",
+    message: "Maize (Yellow Grade A) stock is below safety levels (40,000 KG left).",
+    time: "1 hr ago",
+    category: "Inventory",
+    read: false,
+    stockOutPrediction: {
+      itemCode: "RM001",
+      itemName: "Maize (Yellow Grade A)",
+      avgDailyBurnKg: 3200,
+      currentStockKg: 40000,
+      daysRemaining: 12,
+      suggestedReorderKg: 35000,
+      riskLevel: "Critical"
+    }
+  },
+  {
+    id: "n2",
+    title: "PR Pending Approval",
+    message: "Sultana Begum raised PR-2026-0041 for 20,000 KG Maize",
+    time: "2 hrs ago",
+    category: "Approval",
+    read: false
+  },
+  {
+    id: "n3",
+    title: "Daily Sales Target Complete",
+    message: "Revenue target surpassed for Gazipur Sector",
+    time: "4 hrs ago",
+    category: "Finance",
+    read: true
+  },
+  {
+    id: "n4",
+    title: "AI Stock-Out Trend Prediction: Floating Fish Feed",
+    message: "Historical consumption surge detected. Depot stock (800 Bags) will deplete in 9 days.",
+    time: "Just now",
+    category: "Inventory",
+    read: false,
+    stockOutPrediction: {
+      itemCode: "FG002",
+      itemName: "Floating Fish Feed (Premium)",
+      avgDailyBurnKg: 88,
+      currentStockKg: 800,
+      daysRemaining: 9,
+      suggestedReorderKg: 1200,
+      riskLevel: "High"
+    }
+  }
 ];

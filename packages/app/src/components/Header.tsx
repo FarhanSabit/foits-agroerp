@@ -14,7 +14,10 @@ import {
   AlertTriangle,
   FolderOpen,
   Database,
-  RefreshCw
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Smartphone
 } from "lucide-react";
 import { Notification, DocStatus } from "../types";
 
@@ -33,6 +36,7 @@ interface HeaderProps {
   onChangeRole: (newRole: string) => void;
   currency: "BDT" | "USD";
   onToggleCurrency: (currency: "BDT" | "USD") => void;
+  onAutoGeneratePreventivePR?: (itemCode: string, qty: number) => void;
 }
 
 export default function Header({
@@ -49,11 +53,24 @@ export default function Header({
   role,
   onChangeRole,
   currency,
-  onToggleCurrency
+  onToggleCurrency,
+  onAutoGeneratePreventivePR
 }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
   const [notifFilter, setNotifFilter] = useState<string>("All");
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -88,7 +105,22 @@ export default function Header({
   const showSO = role === "CFO";
 
   return (
-    <header className="sticky top-0 glass-header z-30 h-16 flex items-center justify-between px-6 transition-all duration-150 border-b border-slate-200/50 dark:border-white/10">
+    <header className="sticky top-0 glass-header z-30 h-16 flex items-center justify-between px-6 transition-all duration-150 border-b border-slate-200/50 dark:border-white/10 relative">
+      {!isOnline && (
+        <div className="absolute top-full left-0 right-0 bg-amber-500/95 text-slate-950 px-4 py-1.5 text-[11px] font-mono font-bold flex items-center justify-between shadow-md z-40 animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-center gap-2 truncate">
+            <WifiOff className="h-4 w-4 shrink-0 animate-bounce text-slate-950" />
+            <span className="truncate">
+              {isBangla
+                ? "নেটওয়ার্ক সংযোগ বিচ্ছিন্ন — আপনার পরিবর্তনসমূহ স্থানীয়ভাবে সংরক্ষিত হচ্ছে এবং সিনক্রোনাইজেশনের জন্য অপেক্ষমাণ।"
+                : "NETWORK DISCONNECTED — Changes saved locally & queued for automatic sync upon reconnection."}
+            </span>
+          </div>
+          <span className="bg-slate-900 text-amber-300 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider shrink-0 ml-2">
+            Offline Queued
+          </span>
+        </div>
+      )}
       
       {/* Left: Search Bar trigger */}
       <div className="flex items-center gap-4 w-1/4">
@@ -249,6 +281,40 @@ export default function Header({
           </button>
         </div>
 
+        {/* PWA / Field Warehouse Offline Status Indicator */}
+        <div
+          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold font-mono transition-all ${
+            isOnline
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+              : "bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/50 shadow-xs"
+          }`}
+          title={
+            isOnline
+              ? "Network Connected - Online Mode"
+              : "Network Disconnected - Actions currently queued for local synchronization"
+          }
+        >
+          {isOnline ? (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <Wifi className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">ONLINE</span>
+            </>
+          ) : (
+            <>
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              <WifiOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>OFFLINE (QUEUED)</span>
+            </>
+          )}
+        </div>
+
         {/* Language Toggle */}
         <button
           onClick={toggleLanguage}
@@ -340,29 +406,67 @@ export default function Header({
                       <div
                         key={n.id}
                         onClick={() => markNotificationRead(n.id)}
-                        className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all cursor-pointer flex gap-3 ${
+                        className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-all cursor-pointer flex flex-col gap-2 ${
                           isRead ? "opacity-75" : "bg-green-50/20 dark:bg-green-950/10 font-medium"
                         }`}
                       >
-                        <div className="mt-0.5 shrink-0">
-                          {n.category === "Inventory" && <AlertTriangle className="h-4 w-4 text-amber-500" />}
-                          {n.category === "Approval" && <CheckCircle className="h-4 w-4 text-green-600" />}
-                          {n.category === "Finance" && <Info className="h-4 w-4 text-blue-600" />}
-                          {n.category === "System" && <FolderOpen className="h-4 w-4 text-purple-600" />}
+                        <div className="flex gap-3 items-start">
+                          <div className="mt-0.5 shrink-0">
+                            {n.category === "Inventory" && <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                            {n.category === "Approval" && <CheckCircle className="h-4 w-4 text-green-600" />}
+                            {n.category === "Finance" && <Info className="h-4 w-4 text-blue-600" />}
+                            {n.category === "System" && <FolderOpen className="h-4 w-4 text-purple-600" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-slate-800 dark:text-slate-100 font-bold truncate">
+                              {n.title}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-normal">
+                              {n.message}
+                            </p>
+                            <span className="text-[10px] font-mono text-slate-400 mt-1 block">
+                              {n.time}
+                            </span>
+                          </div>
+                          {!isRead && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-green-600 shrink-0 self-center"></span>
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-slate-800 dark:text-slate-100 font-bold truncate">
-                            {n.title}
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-normal">
-                            {n.message}
-                          </p>
-                          <span className="text-[10px] font-mono text-slate-400 mt-1 block">
-                            {n.time}
-                          </span>
-                        </div>
-                        {!isRead && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-green-600 shrink-0 self-center"></span>
+
+                        {/* Stock-Out AI Trend Card inside Notification */}
+                        {n.stockOutPrediction && (
+                          <div className="mt-1 p-2.5 bg-rose-950/20 dark:bg-rose-950/40 border border-rose-500/30 rounded-lg text-xs space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-mono font-bold text-rose-400 uppercase tracking-wider">
+                                {isBangla ? "প্রেডিক্টিভ স্টক-আউট রিস্ক" : `STOCK-OUT RISK: ${n.stockOutPrediction.riskLevel}`}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded">
+                                {n.stockOutPrediction.daysRemaining} Days Left
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] font-mono text-slate-300 flex justify-between">
+                              <span>Daily Burn: {n.stockOutPrediction.avgDailyBurnKg.toLocaleString()} KG/day</span>
+                              <span>Stock: {n.stockOutPrediction.currentStockKg.toLocaleString()} KG</span>
+                            </div>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onAutoGeneratePreventivePR && n.stockOutPrediction) {
+                                  onAutoGeneratePreventivePR(n.stockOutPrediction.itemCode, n.stockOutPrediction.suggestedReorderKg);
+                                }
+                              }}
+                              className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-1.5 px-2 rounded text-[11px] font-mono transition-all cursor-pointer shadow-xs shadow-rose-600/30 flex items-center justify-center gap-1 mt-1"
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>
+                                {isBangla
+                                  ? `স্বয়ংক্রিয় রিকুইজিশন তৈরি (${n.stockOutPrediction.suggestedReorderKg.toLocaleString()} KG)`
+                                  : `Auto-Generate PR (${n.stockOutPrediction.suggestedReorderKg.toLocaleString()} KG)`}
+                              </span>
+                            </button>
+                          </div>
                         )}
                       </div>
                     );

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { z } from "zod";
 import {
   Users,
   FileText,
@@ -9,6 +10,7 @@ import {
   FileCheck2,
   Plus,
   AlertTriangle,
+  AlertCircle,
   Search,
   Check,
   X,
@@ -16,10 +18,16 @@ import {
   RefreshCw,
   CheckCircle2,
   Download,
-  QrCode
+  QrCode,
+  PenTool,
+  History,
+  ShieldCheck
 } from "lucide-react";
 import { downloadGRNPDF } from "../utils/pdfGenerator";
 import BarcodeScannerModal from "./BarcodeScannerModal";
+import { ESignatureModal } from "./ESignatureModal";
+import DocVersionHistoryModal from "./DocVersionHistoryModal";
+import BiometricAuthModal from "./BiometricAuthModal";
 import {
   ERPState,
   Supplier,
@@ -36,8 +44,11 @@ interface ProcurementModuleProps {
   onRaisePR: (itemCode: string, qty: number) => void;
   onRaiseRFQ: (prNumber: string) => void;
   onAwardSupplier: (rfqNumber: string, supplierCode: string) => void;
-  onPostGRN: (poNumber: string, receivedItems: any[]) => void;
+  onPostGRN: (poNumber: string, receivedItems: any[], signatureDataUrl?: string, signatoryName?: string) => void;
+  onApprovePR?: (id: string, signatureDataUrl?: string, signatoryName?: string) => void;
+  onApprovePO?: (id: string, signatureDataUrl?: string, signatoryName?: string) => void;
   onLinkInvoiceToGRN?: (grnId: string, invoiceUrl: string) => void;
+  onRevertVersion?: (docType: "PR" | "PO", docId: string, versionNumber: number) => void;
   isBangla: boolean;
   isLoading?: boolean;
 }
@@ -52,7 +63,10 @@ export default function ProcurementModule({
   onRaiseRFQ,
   onAwardSupplier,
   onPostGRN,
+  onApprovePR,
+  onApprovePO,
   onLinkInvoiceToGRN,
+  onRevertVersion,
   isBangla,
   isLoading = false
 }: ProcurementModuleProps) {
@@ -60,6 +74,84 @@ export default function ProcurementModule({
   const [searchTerm, setSearchTerm] = useState("");
   const [newPrQty, setNewPRQty] = useState(20000);
   const [newPrItem, setNewPRItem] = useState("RM001");
+  const [prErrors, setPrErrors] = useState<{ itemCode?: string; qty?: string } | null>(null);
+
+  // Quick Sort States for Procurement
+  const [prSort, setPrSort] = useState<"number_asc" | "date_desc" | "date_asc" | "cost_desc" | "cost_asc">("date_desc");
+  const [poSort, setPoSort] = useState<"number_asc" | "date_desc" | "date_asc" | "cost_desc" | "cost_asc" | "supplier_asc">("date_desc");
+
+  // E-Signature Modal State
+  const [isSigModalOpen, setIsSigModalOpen] = useState(false);
+  const [sigTargetType, setSigTargetType] = useState<"pr" | "po" | "grn">("pr");
+  const [sigTargetId, setSigTargetId] = useState<string>("");
+  const [sigDocTitle, setSigDocTitle] = useState<string>("");
+  const [sigExtraData, setSigExtraData] = useState<any>(null);
+
+  // Version Control Modal State
+  const [isVerModalOpen, setIsVerModalOpen] = useState(false);
+  const [verDocDetails, setVerDocDetails] = useState<{ id: string; number: string; type: "PR" | "PO"; versions: any[] } | null>(null);
+
+  // WebAuthn Biometric Auth State
+  const [isBioModalOpen, setIsBioModalOpen] = useState(false);
+  const [bioTargetDoc, setBioTargetDoc] = useState<{ type: "pr" | "po"; id: string; title: string; amount: number } | null>(null);
+
+  // Zod schema for PR validation
+  const prSchema = z.object({
+    itemCode: z.string().min(1, { message: isBangla ? "আইটেম নির্বাচন আবশ্যক" : "Item selection is required" }),
+    qty: z
+      .number({ message: isBangla ? "সংখ্যার মান প্রয়োজন" : "Must be a valid number" })
+      .min(100, { message: isBangla ? "সর্বনিম্ন পরিমাণ ১০০ কেজি" : "Minimum quantity is 100 KG" })
+      .max(500000, { message: isBangla ? "সর্বোচ্চ পরিমাণ ৫,০০,০০০ কেজি" : "Maximum quantity is 500,000 KG" })
+  });
+
+  const handleValidateAndRaisePR = () => {
+    const parseResult = prSchema.safeParse({ itemCode: newPrItem, qty: Number(newPrQty) });
+    if (!parseResult.success) {
+      const formatted = parseResult.error.format();
+      setPrErrors({
+        itemCode: formatted.itemCode?._errors[0],
+        qty: formatted.qty?._errors[0]
+      });
+      return;
+    }
+    setPrErrors(null);
+    onRaisePR(newPrItem, Number(newPrQty));
+    alert(isBangla ? "ক্রয় রিকুইজিশন তৈরি সম্পন্ন হয়েছে!" : "Purchase Requisition created successfully!");
+  };
+
+  const handleSignatureConfirm = (dataUrl: string, signatoryName: string, role: string) => {
+    if (sigTargetType === "pr" && onApprovePR) {
+      onApprovePR(sigTargetId, dataUrl, signatoryName);
+    } else if (sigTargetType === "po" && onApprovePO) {
+      onApprovePO(sigTargetId, dataUrl, signatoryName);
+    } else if (sigTargetType === "grn") {
+      onPostGRN(sigTargetId, sigExtraData || [], dataUrl, signatoryName);
+    }
+  };
+
+  const openSignatureModal = (type: "pr" | "po" | "grn", id: string, docTitle: string, extraData?: any, amount?: number) => {
+    if (amount && amount > 500000) {
+      setBioTargetDoc({ type: type as "pr" | "po", id, title: docTitle, amount });
+      setSigExtraData(extraData);
+      setIsBioModalOpen(true);
+      return;
+    }
+    setSigTargetType(type);
+    setSigTargetId(id);
+    setSigDocTitle(docTitle);
+    setSigExtraData(extraData);
+    setIsSigModalOpen(true);
+  };
+
+  const handleBiometricSuccess = () => {
+    if (bioTargetDoc) {
+      setSigTargetType(bioTargetDoc.type);
+      setSigTargetId(bioTargetDoc.id);
+      setSigDocTitle(bioTargetDoc.title);
+      setIsBioModalOpen(false);
+      setIsSigModalOpen(true);
+    }
+  };
 
   // Barcode & QR Scanner state
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
@@ -262,30 +354,58 @@ export default function ProcurementModule({
         
         {/* Helper widget based on tab */}
         {activeSubTab === "pr" && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-medium text-slate-500">{isBangla ? "নতুন পিআর:" : "Item:"}</span>
-            <select
-              value={newPrItem}
-              onChange={(e) => setNewPRItem(e.target.value)}
-              className="glass-input rounded p-1.5 text-xs text-slate-700 dark:text-slate-200 outline-none"
-            >
-              {state.inventory.filter(i => i.category === "Raw Material").map(i => (
-                <option key={i.code} value={i.code}>{i.name}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              value={newPrQty}
-              onChange={(e) => setNewPRQty(Number(e.target.value))}
-              className="glass-input rounded p-1.5 text-xs text-slate-700 dark:text-slate-200 w-24 outline-none"
-              placeholder="Quantity"
-            />
+            
+            <div className="relative flex items-center">
+              <select
+                value={newPrItem}
+                onChange={(e) => {
+                  setNewPRItem(e.target.value);
+                  setPrErrors(null);
+                }}
+                className={`glass-input rounded p-1.5 text-xs text-slate-700 dark:text-slate-200 outline-none ${
+                  prErrors?.itemCode ? "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/50 dark:bg-rose-950/30" : ""
+                }`}
+              >
+                {state.inventory.filter(i => i.category === "Raw Material").map(i => (
+                  <option key={i.code} value={i.code}>{i.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="relative flex items-center group">
+              <input
+                type="number"
+                value={newPrQty}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setNewPRQty(val);
+                  const check = prSchema.safeParse({ itemCode: newPrItem, qty: val });
+                  if (!check.success) {
+                    setPrErrors({ qty: check.error.format().qty?._errors[0] });
+                  } else {
+                    setPrErrors(null);
+                  }
+                }}
+                className={`glass-input rounded p-1.5 text-xs text-slate-700 dark:text-slate-200 w-28 outline-none ${
+                  prErrors?.qty ? "border-rose-500 ring-2 ring-rose-500/30 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold" : ""
+                }`}
+                placeholder="Quantity"
+              />
+              {prErrors?.qty && (
+                <div className="relative flex items-center ml-1">
+                  <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 animate-pulse cursor-help" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block z-50 bg-rose-900 text-white text-[10px] py-1 px-2.5 rounded-md shadow-lg whitespace-nowrap font-sans border border-rose-700">
+                    {prErrors.qty}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
-              onClick={() => {
-                onRaisePR(newPrItem, newPrQty);
-                alert(isBangla ? "ক্রয় রিকুইজিশন তৈরি সম্পন্ন হয়েছে!" : "Purchase Requisition created successfully!");
-              }}
-              className="glass-button-indigo text-xs px-3.5 py-1.5 shrink-0 flex items-center gap-1"
+              onClick={handleValidateAndRaisePR}
+              className="glass-button-indigo text-xs px-3.5 py-1.5 shrink-0 flex items-center gap-1 cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>{isBangla ? "পিআর যোগ করুন" : "Raise PR"}</span>
@@ -338,6 +458,29 @@ export default function ProcurementModule({
         {/* Tab 2: Purchase Requisitions */}
         {activeSubTab === "pr" && (
           <div className="overflow-x-auto">
+            {/* PR Quick Sort Bar */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200/50 dark:border-white/10 flex justify-between items-center flex-wrap gap-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-wider">
+                {isBangla ? "ক্রয় রিকুইজিশন রেজিস্ট্রি (PR)" : "Purchase Requisitions Register"} ({state.requisitions.length})
+              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-[11px] font-mono text-slate-400 font-bold">
+                  {isBangla ? "কুইক সর্ট:" : "Quick Sort:"}
+                </span>
+                <select
+                  value={prSort}
+                  onChange={(e) => setPrSort(e.target.value as any)}
+                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                >
+                  <option value="date_desc">{isBangla ? "তারিখ (নতুন প্রথম)" : "Requested Date (Newest)"}</option>
+                  <option value="date_asc">{isBangla ? "তারিখ (পুরাতন প্রথম)" : "Requested Date (Oldest)"}</option>
+                  <option value="cost_desc">{isBangla ? "প্রাক্কলিত ব্যয় (সর্বোচ্চ)" : "Est. Cost (Highest)"}</option>
+                  <option value="cost_asc">{isBangla ? "প্রাক্কলিত ব্যয় (সর্বনিম্ন)" : "Est. Cost (Lowest)"}</option>
+                  <option value="number_asc">{isBangla ? "পিআর কোড" : "PR Number (A-Z)"}</option>
+                </select>
+              </div>
+            </div>
+
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                 <tr>
@@ -352,7 +495,16 @@ export default function ProcurementModule({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
-                {state.requisitions.map((pr) => (
+                {[...state.requisitions]
+                  .sort((a, b) => {
+                    if (prSort === "number_asc") return a.prNumber.localeCompare(b.prNumber);
+                    if (prSort === "date_desc") return b.requestedDate.localeCompare(a.requestedDate);
+                    if (prSort === "date_asc") return a.requestedDate.localeCompare(b.requestedDate);
+                    if (prSort === "cost_desc") return (b.totalEstimatedValue || 0) - (a.totalEstimatedValue || 0);
+                    if (prSort === "cost_asc") return (a.totalEstimatedValue || 0) - (b.totalEstimatedValue || 0);
+                    return 0;
+                  })
+                  .map((pr) => (
                   <tr key={pr.id} className="hover:bg-white/40 dark:hover:bg-white/[0.02] transition-colors">
                     <td className="p-3.5 pl-6 font-mono font-bold text-slate-800 dark:text-slate-200">{pr.prNumber}</td>
                     <td className="p-3.5 font-bold text-slate-700 dark:text-slate-200">{pr.department}</td>
@@ -367,26 +519,71 @@ export default function ProcurementModule({
                     </td>
                     <td className="p-3.5 font-bold text-slate-800 dark:text-slate-200 font-mono">৳ {pr.totalEstimatedValue.toLocaleString()}</td>
                     <td className="p-3.5">
-                      <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
-                        pr.status === DocStatus.APPROVED
-                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-                          : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-                      }`}>
-                        {pr.status}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full w-fit ${
+                          pr.status === DocStatus.APPROVED
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                        }`}>
+                          {pr.status}
+                        </span>
+                        {pr.signatureUrl && (
+                          <span className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-bold">
+                            <PenTool className="h-3 w-3" /> Signed: {pr.signedBy || "Manager"}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3.5 pr-6">
-                      {pr.status === DocStatus.APPROVED && (
+                      <div className="flex items-center gap-2">
+                        {pr.status === DocStatus.PENDING && (
+                          <button
+                            onClick={() => openSignatureModal("pr", pr.id, `Requisition ${pr.prNumber}`, null, pr.totalEstimatedValue)}
+                            className="glass-button-amber text-[11px] px-2.5 py-1.5 flex items-center gap-1 cursor-pointer"
+                            title="Sign & Approve Requisition"
+                          >
+                            <PenTool className="h-3.5 w-3.5" />
+                            <span>{isBangla ? "ই-স্বাক্ষর ও অনুমোদন" : "E-Sign & Approve"}</span>
+                          </button>
+                        )}
+                        {pr.status === DocStatus.APPROVED && (
+                          <button
+                            onClick={() => {
+                              onRaiseRFQ(pr.prNumber);
+                              alert(isBangla ? "আরএফকিউ দরপত্র প্রস্তুত করা হয়েছে!" : "RFQ generated from approved Requisition!");
+                            }}
+                            className="glass-button-indigo text-[11px] px-2.5 py-1.5 cursor-pointer"
+                          >
+                            {isBangla ? "আরএফকিউ তৈরি" : "Generate RFQ"}
+                          </button>
+                        )}
+
+                        {/* Version History Trigger */}
                         <button
                           onClick={() => {
-                            onRaiseRFQ(pr.prNumber);
-                            alert(isBangla ? "আরএফকিউ দরপত্র প্রস্তুত করা হয়েছে!" : "RFQ generated from approved Requisition!");
+                            setVerDocDetails({
+                              id: pr.id,
+                              number: pr.prNumber,
+                              type: "PR",
+                              versions: pr.versions || [
+                                {
+                                  versionNumber: 1,
+                                  modifiedAt: pr.requestedDate + " 10:00 AM",
+                                  modifiedBy: pr.requestedBy,
+                                  changeSummary: "Initial Purchase Requisition creation",
+                                  snapshot: pr
+                                }
+                              ]
+                            });
+                            setIsVerModalOpen(true);
                           }}
-                          className="glass-button-indigo text-[11px] px-2.5 py-1.5"
+                          className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700/60 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-mono border border-slate-200/50 dark:border-white/10"
+                          title={isBangla ? "সংস্করণ ইতিহাস ও সংশোধন আডিট" : "Version History & Audit"}
                         >
-                          {isBangla ? "আরএফকিউ তৈরি" : "Generate RFQ"}
+                          <History className="h-3.5 w-3.5 text-indigo-500" />
+                          <span className="hidden sm:inline">v{pr.versions ? pr.versions.length : 1}</span>
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -474,6 +671,30 @@ export default function ProcurementModule({
         {/* Tab 4: Purchase Orders */}
         {activeSubTab === "po" && (
           <div className="overflow-x-auto">
+            {/* PO Quick Sort Bar */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200/50 dark:border-white/10 flex justify-between items-center flex-wrap gap-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-wider">
+                {isBangla ? "পারচেজ অর্ডার রেজিস্ট্রি (PO)" : "Purchase Orders Register"} ({state.purchaseOrders.length})
+              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-[11px] font-mono text-slate-400 font-bold">
+                  {isBangla ? "কুইক সর্ট:" : "Quick Sort:"}
+                </span>
+                <select
+                  value={poSort}
+                  onChange={(e) => setPoSort(e.target.value as any)}
+                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                >
+                  <option value="date_desc">{isBangla ? "অর্ডার তারিখ (নতুন প্রথম)" : "Order Date (Newest)"}</option>
+                  <option value="date_asc">{isBangla ? "অর্ডার তারিখ (পুরাতন প্রথম)" : "Order Date (Oldest)"}</option>
+                  <option value="cost_desc">{isBangla ? "মোট ব্যয় (সর্বোচ্চ)" : "Total Amount (Highest)"}</option>
+                  <option value="cost_asc">{isBangla ? "মোট ব্যয় (সর্বনিম্ন)" : "Total Amount (Lowest)"}</option>
+                  <option value="supplier_asc">{isBangla ? "সরবরাহকারী নাম" : "Supplier Name (A-Z)"}</option>
+                  <option value="number_asc">{isBangla ? "পিও নম্বর" : "PO Number (A-Z)"}</option>
+                </select>
+              </div>
+            </div>
+
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                 <tr>
@@ -487,7 +708,17 @@ export default function ProcurementModule({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
-                {state.purchaseOrders.map((po) => (
+                {[...state.purchaseOrders]
+                  .sort((a, b) => {
+                    if (poSort === "number_asc") return a.poNumber.localeCompare(b.poNumber);
+                    if (poSort === "date_desc") return b.orderDate.localeCompare(a.orderDate);
+                    if (poSort === "date_asc") return a.orderDate.localeCompare(b.orderDate);
+                    if (poSort === "cost_desc") return (b.totalAmount || 0) - (a.totalAmount || 0);
+                    if (poSort === "cost_asc") return (a.totalAmount || 0) - (b.totalAmount || 0);
+                    if (poSort === "supplier_asc") return a.supplierName.localeCompare(b.supplierName);
+                    return 0;
+                  })
+                  .map((po) => (
                   <tr key={po.id} className="hover:bg-white/40 dark:hover:bg-white/[0.02] transition-colors">
                     <td className="p-3.5 pl-6 font-mono font-bold text-slate-800 dark:text-slate-200">{po.poNumber}</td>
                     <td className="p-3.5 font-bold text-slate-800 dark:text-slate-100">{po.supplierName}</td>
@@ -501,30 +732,81 @@ export default function ProcurementModule({
                     </td>
                     <td className="p-3.5 font-bold text-slate-800 dark:text-slate-200 font-mono">৳ {po.totalAmount.toLocaleString()}</td>
                     <td className="p-3.5">
-                      <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
-                        po.approvalStatus === DocStatus.APPROVED
-                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-                          : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-                      }`}>
-                        {po.approvalStatus}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full w-fit ${
+                          po.approvalStatus === DocStatus.APPROVED
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                        }`}>
+                          {po.approvalStatus}
+                        </span>
+                        {po.signatureUrl && (
+                          <span className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-bold">
+                            <PenTool className="h-3 w-3" /> Signed: {po.signedBy || "Manager"}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3.5 pr-6">
-                      {po.approvalStatus === DocStatus.APPROVED && po.deliveryStatus === "Pending" ? (
+                      <div className="flex items-center gap-2">
+                        {po.approvalStatus === DocStatus.PENDING && (
+                          <button
+                            onClick={() => openSignatureModal("po", po.id, `Purchase Order ${po.poNumber}`, null, po.totalAmount)}
+                            className="glass-button-amber text-[11px] px-2.5 py-1.5 flex items-center gap-1 cursor-pointer"
+                            title="Sign & Approve Purchase Order"
+                          >
+                            <PenTool className="h-3.5 w-3.5" />
+                            <span>{isBangla ? "ই-স্বাক্ষর ও অনুমোদন" : "E-Sign & Approve"}</span>
+                          </button>
+                        )}
+                        {po.approvalStatus === DocStatus.APPROVED && po.deliveryStatus === "Pending" && (
+                          <button
+                            onClick={() => {
+                              openSignatureModal(
+                                "grn",
+                                po.poNumber,
+                                `Goods Receipt Note (${po.poNumber})`,
+                                po.items.map(i => ({ itemCode: i.itemCode, itemName: i.itemName, qty: i.qty, uom: i.uom }))
+                              );
+                            }}
+                            className="glass-button-green text-[11px] px-3.5 py-1.5 flex items-center gap-1 cursor-pointer"
+                          >
+                            <PenTool className="h-3.5 w-3.5" />
+                            <span>{isBangla ? "পণ্য গ্রহণ (ই-স্বাক্ষর)" : "Post GRN (Sign)"}</span>
+                          </button>
+                        )}
+                        {po.approvalStatus === DocStatus.APPROVED && po.deliveryStatus !== "Pending" && (
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {po.deliveryStatus}
+                          </span>
+                        )}
+
+                        {/* Version History Trigger */}
                         <button
                           onClick={() => {
-                            onPostGRN(po.poNumber, po.items.map(i => ({ itemCode: i.itemCode, itemName: i.itemName, qty: i.qty, uom: i.uom })));
-                            alert(isBangla ? "পণ্য প্রাপ্তি জিআরএন সফলভাবে সম্পন্ন হয়েছে!" : "Goods Receipt Note (GRN) successfully posted into inventory.");
+                            setVerDocDetails({
+                              id: po.id,
+                              number: po.poNumber,
+                              type: "PO",
+                              versions: po.versions || [
+                                {
+                                  versionNumber: 1,
+                                  modifiedAt: po.orderDate + " 11:30 AM",
+                                  modifiedBy: "SCM Lead",
+                                  changeSummary: "Initial PO issue to supplier " + po.supplierName,
+                                  snapshot: po
+                                }
+                              ]
+                            });
+                            setIsVerModalOpen(true);
                           }}
-                          className="glass-button-green text-[11px] px-3.5 py-1.5"
+                          className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700/60 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-mono border border-slate-200/50 dark:border-white/10"
+                          title={isBangla ? "সংস্করণ ইতিহাস ও সংশোধন আডিট" : "Version History & Audit"}
                         >
-                          {isBangla ? "পণ্য গ্রহণ (GRN)" : "Post GRN"}
+                          <History className="h-3.5 w-3.5 text-indigo-500" />
+                          <span className="hidden sm:inline">v{po.versions ? po.versions.length : 1}</span>
                         </button>
-                      ) : (
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          {po.deliveryStatus}
-                        </span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -618,14 +900,31 @@ export default function ProcurementModule({
                           )}
                         </td>
                         <td className="p-3.5 pr-6 text-right">
-                          <button
-                            onClick={() => downloadGRNPDF(grn, isBangla)}
-                            className="text-[11px] bg-slate-100 hover:bg-indigo-50 text-indigo-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-indigo-400 font-bold px-2.5 py-1 rounded border border-slate-200 dark:border-white/10 transition-all inline-flex items-center gap-1 cursor-pointer"
-                            title="Download PDF GRN Document"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            <span>{isBangla ? "পিডিএফ" : "Download PDF"}</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {grn.signatureUrl ? (
+                              <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-500/30 px-2 py-1 rounded font-mono font-bold flex items-center gap-1" title={`Signed by ${grn.signedBy}`}>
+                                <PenTool className="h-3 w-3 text-indigo-500" />
+                                <span>SIGNED ({grn.signedBy || "Manager"})</span>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => openSignatureModal("grn", grn.poNumber, `Goods Receipt Note (${grn.grnNumber})`, grn.items)}
+                                className="text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 dark:text-amber-300 font-bold px-2 py-1 rounded border border-amber-200/50 dark:border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                title="Attach E-Signature"
+                              >
+                                <PenTool className="h-3 w-3" />
+                                <span>{isBangla ? "ই-স্বাক্ষর করুন" : "Add Signature"}</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => downloadGRNPDF(grn, isBangla)}
+                              className="text-[11px] bg-slate-100 hover:bg-indigo-50 text-indigo-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-indigo-400 font-bold px-2.5 py-1 rounded border border-slate-200 dark:border-white/10 transition-all inline-flex items-center gap-1 cursor-pointer"
+                              title="Download PDF GRN Document"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              <span>{isBangla ? "পিডিএফ" : "Download PDF"}</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -802,6 +1101,47 @@ export default function ProcurementModule({
         title="Procurement Item Barcode & QR Scanner"
         isBangla={isBangla}
       />
+
+      {/* E-SIGNATURE MODAL FOR DOCUMENT APPROVALS */}
+      <ESignatureModal
+        isOpen={isSigModalOpen}
+        onClose={() => setIsSigModalOpen(false)}
+        onConfirmSignature={handleSignatureConfirm}
+        documentTitle={sigDocTitle}
+        signatoryRole="Manager / Approver"
+        isBangla={isBangla}
+      />
+
+      {/* VERSION HISTORY MODAL */}
+      {verDocDetails && (
+        <DocVersionHistoryModal
+          isOpen={isVerModalOpen}
+          onClose={() => setIsVerModalOpen(false)}
+          documentNumber={verDocDetails.number}
+          documentType={verDocDetails.type}
+          versions={verDocDetails.versions}
+          onRevertVersion={(verNum) => {
+            if (onRevertVersion) {
+              onRevertVersion(verDocDetails.type, verDocDetails.id, verNum);
+            }
+            setIsVerModalOpen(false);
+          }}
+          isBangla={isBangla}
+        />
+      )}
+
+      {/* WEBAUTHN BIOMETRIC AUTH MODAL */}
+      {bioTargetDoc && (
+        <BiometricAuthModal
+          isOpen={isBioModalOpen}
+          onClose={() => setIsBioModalOpen(false)}
+          onSuccess={handleBiometricSuccess}
+          title={isBangla ? `বায়োমেট্রিক সনিশ্চিতকরণ: ${bioTargetDoc.title}` : `High-Value Authorization (${bioTargetDoc.title})`}
+          description={isBangla ? "৫,০০,০০০ টাকার বেশি লেনদেনের জন্য সিকিউর ফিঙ্গারপ্রিন্ট/ফেস আইডি স্ক্যান আবশ্যক।" : "Biometric WebAuthn FIDO2 verification required for high-value transactions (> ৳500,000)."}
+          amount={bioTargetDoc.amount}
+          isBangla={isBangla}
+        />
+      )}
     </div>
   );
 }

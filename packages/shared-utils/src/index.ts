@@ -66,5 +66,63 @@ export function cn(...classes: (string | undefined | null | boolean | { [key: st
   return result.join(" ");
 }
 
+/**
+ * Centralized ConversionManager service for calculating unit transformations
+ * across inventory items (e.g., Tons, Bags, Quintals, Lbs to/from KG).
+ */
+export class ConversionManager {
+  private static conversionFactors: Record<string, number> = {
+    KG: 1,
+    MT: 1000,
+    Tons: 1000,
+    Bags: 50,
+    Quintals: 100,
+    Lbs: 0.453592,
+  };
+
+  /**
+   * Converts a given quantity from one unit to another based on conversion factors relative to KG.
+   */
+  public static convert(quantity: number, fromUnit: string, toUnit: string): number {
+    const fromFactor = this.conversionFactors[fromUnit] ?? 1;
+    const toFactor = this.conversionFactors[toUnit] ?? 1;
+    if (toFactor === 0) return 0;
+    
+    // Convert to base unit (KG) then to target unit
+    const inKg = quantity * fromFactor;
+    return inKg / toFactor;
+  }
+
+  /**
+   * Converts a quantity in KG directly to a target display unit.
+   */
+  public static convertFromKg(qtyInKg: number, targetUnit: string): { value: number; unitLabel: string } {
+    if (!targetUnit || targetUnit === "default" || targetUnit === "KG") {
+      return { value: qtyInKg, unitLabel: "KG" };
+    }
+    const factor = this.conversionFactors[targetUnit] ?? 1;
+    return {
+      value: qtyInKg / factor,
+      unitLabel: targetUnit,
+    };
+  }
+
+  /**
+   * Gets stored conversion factor map relative to 1 KG.
+   */
+  public static getFactors(): Record<string, number> {
+    return { ...this.conversionFactors };
+  }
+
+  /**
+   * Sets or overrides a unit conversion factor relative to KG.
+   */
+  public static setFactor(unit: string, factorToKg: number): void {
+    if (factorToKg > 0) {
+      this.conversionFactors[unit] = factorToKg;
+    }
+  }
+}
+
 export * from "./schemas";
 
