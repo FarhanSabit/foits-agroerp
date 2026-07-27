@@ -4,35 +4,50 @@
 Act as a Senior Software Fullstack Expert, Principal Architect, and Experienced Developer. You possess deep expertise in modern React (with Vite), TypeScript, Tailwind CSS, Monorepo architectures (npm workspaces), state management, UI/UX best practices (Swiss-Modern aesthetic), and secure, scalable frontend architecture. 
 
 **Task:**
-I will provide you with a PDF containing the client's original requirements, business logic, and UI specifications for the "OITS Dhaka - Agro ERP" application. I will also provide you with the current source code of our Monorepo implementation. 
+Conduct a rigorous, professional code review and gap analysis of the "OITS Dhaka - Agro ERP" application. Compare the current codebase against the client's provided requirement specifications (PDF) and evaluate the code quality, architectural decisions, and alignment with our strict engineering standards.
 
-Your objective is to conduct a rigorous, professional code review and gap analysis. Compare the current codebase against the client's PDF requirements and evaluate the code quality, architectural decisions, and alignment with our strict engineering standards.
+**Please structure your response in the following sections:**
 
-**Please structure your review as follows:**
+### 1. Feature Implementation Status & Gap Analysis
+Provide a clear tabular representation of the following:
+| Feature / Module | Requirement Source | Implementation Status | Implementation Type | Notes/Gaps |
+| :--- | :--- | :--- | :--- | :--- |
+| e.g. Procurement PR -> PO | PDF Spec | Completed | Core | Verified workflow |
+| e.g. Currency Widget | New Request | Completed | Extra | Integrated with Finance API |
 
-### 1. Requirements Gap Analysis (The PDF vs. The Code)
-- **Missing Features:** Identify any features, modules, or business logic described in the PDF that are currently missing or incomplete in the codebase.
-- **Divergences:** Point out where the implemented logic or UI diverges from the client's explicit requirements in the PDF.
-- **Workflow Completeness:** Evaluate if the core workflows (e.g., Procurement PR -> PO -> GRN -> QC) seamlessly match the steps requested by the client.
+- **Extra Features:** Highlight features implemented that were *not* in the original PDF but were added to enhance the system (e.g., Warehouse Heatmap, Supplier Scorecards, Currency Conversion).
 
 ### 2. Architectural & Code Quality Review
-- **Monorepo Structure:** Review the usage of our npm workspaces (`@agro-erp/shared-ui`, `@agro-erp/shared-utils`, `@agro-erp/app`). Is the separation of concerns strictly maintained? Are there cross-dependencies that violate the architecture?
-- **TypeScript & Type Safety:** Check for any implicit `any` types, missing interfaces, or improper use of `import type` for enums. Are the types in `src/types.ts` comprehensive and correctly utilized?
-- **State Management & React Best Practices:** Evaluate the use of hooks (e.g., `useState`, `useEffect`). Are there any infinite re-render risks? Is the state overly complex or improperly lifted/drilled?
-- **Performance & Optimization:** Identify any heavy synchronous operations on the main thread, missing memoization (`useMemo`, `useCallback`), or lack of lazy loading.
+- **Monorepo Discipline:** Review the usage of npm workspaces (`@agro-erp/shared-ui`, `@agro-erp/shared-utils`, `@agro-erp/app`).
+- **Type Safety:** Evaluate TypeScript interfaces and enums usage.
+- **State & Hooks:** Check for re-render efficiency and logic placement.
+- **UI/UX (Swiss-Modern):** Assess adherence to high-contrast, precise layout, and sophisticated typography.
 
-### 3. UI/UX & Aesthetic Alignment
-- **Swiss-Modern Adherence:** Assess whether the UI components align with the "Swiss-Modern" aesthetic (high contrast, precise margins, generous negative space, sophisticated typography).
-- **Tailwind CSS:** Review the use of Tailwind classes. Are we avoiding "AI Slop" (e.g., unnecessary gradients, nested cards, excessive borders)? Are touch targets appropriately sized?
-- **Accessibility (a11y):** Check for missing ARIA labels, focus rings (`focus-visible`), and keyboard navigation support.
+### 3. File-Wise Code Analysis & Updates
+For any files that were significantly updated or newly created in the latest iteration, provide:
+- **File Path:** (e.g., `packages/app/src/components/ProcurementModule.tsx`)
+- **Key Changes:** Brief bullet points of what was added/changed.
+- **Explanations & Justifications:** Why were these technical choices made? (e.g., "Used `recharts` ScatterChart for vendor efficiency visualization to provide multi-dimensional data density").
+- **Best Practice Alignment:** How do these changes follow the `GEMINI.md` and `AGENTS.md` rules?
 
-### 4. Actionable Recommendations
-- Provide a prioritized list of refactoring tasks, bug fixes, and feature additions.
-- For complex issues, provide concrete code snippets demonstrating the 'Best Practice' approach.
+### 4. Technical Justifications
+Explain the rationale behind the primary architectural decisions:
+- **Monorepo Choice:** Why npm workspaces?
+- **Shared Library Pattern:** Benefits of the `@agro-erp/` namespace.
+- **Vite + TSX:** Performance and DX benefits.
+
+### 5. Local Setup & Showcasing Instructions
+Provide a step-by-step guide for a developer or client to run this application locally for a demo. This must use free/open-source tools:
+- **Prerequisites:** Node.js, npm.
+- **Installation:** `npm install` at the root.
+- **Development:** `npm run dev` to launch on port 3000.
+- **Production Build:** `npm run build` and how to serve the static output.
+- **Environment:** Mention `.env.example` usage.
 
 **Execution Guidelines for Claude:**
-- Be objective, analytical, and highly critical. Do not sugarcoat flaws.
-- Reference specific file paths and line numbers (if provided) in your critique.
-- Ensure your code suggestions adhere perfectly to our existing workspace dependency rules (e.g., importing from `@agro-erp/shared-ui` instead of creating inline components).
+- Be objective, analytical, and highly critical.
+- Reference specific file paths in your critique.
+- Ensure your code suggestions adhere perfectly to our existing workspace dependency rules.
+- Maintain the "OITS Dhaka" professional tone.
 
-I will now attach the PDF and the codebase. Please acknowledge these instructions and begin your review.
+I will now attach the PDF requirements and the current codebase. Please analyze and provide the structured review.

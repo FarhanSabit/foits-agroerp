@@ -180,6 +180,53 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Automated Monitoring: Overdue Purchase Orders
+  useEffect(() => {
+    if (isLoading) return;
+
+    const scanOverduePOs = () => {
+      const today = new Date();
+      const overduePOs = state.purchaseOrders.filter(po => {
+        if (po.deliveryStatus === "Received") return false;
+        const requiredDate = new Date(po.requiredDate);
+        return requiredDate < today;
+      });
+
+      if (overduePOs.length > 0) {
+        setState(prev => {
+          const newNotifications = [...prev.notifications];
+          let updated = false;
+
+          overduePOs.forEach(po => {
+            const notifId = `overdue-po-${po.id}`;
+            if (!newNotifications.some(n => n.id === notifId)) {
+              newNotifications.unshift({
+                id: notifId,
+                title: "Overdue Purchase Order",
+                message: `PO ${po.poNumber} from ${po.supplierName} is overdue. Expected: ${po.requiredDate}.`,
+                time: "Just now",
+                category: "Procurement" as any, // category was not in enum but union in Notification
+                read: false
+              });
+              updated = true;
+            }
+          });
+
+          if (updated) {
+            return { ...prev, notifications: newNotifications };
+          }
+          return prev;
+        });
+      }
+    };
+
+    // Run once on load and then every 5 minutes
+    scanOverduePOs();
+    const interval = setInterval(scanOverduePOs, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [state.purchaseOrders, isLoading]);
 
   // Sync users to localStorage
   useEffect(() => {
@@ -675,7 +722,8 @@ export default function App() {
             totalPrice: totalAmount
           }
         ],
-        deliveryStatus: "Pending"
+        deliveryStatus: "Pending",
+        requiredDate: "2026-08-05"
       };
 
       const logs = [
@@ -683,7 +731,7 @@ export default function App() {
           timestamp: "2026-07-26 18:45",
           user: "Sultana Begum",
           action: "PO Drafted",
-          details: `PO-2026-0092 drafted to XYZ Grain Trading. Estimate BDT ৳${totalAmount.toLocaleString()}.`
+          details: `PO-2026-0092 drafted to XYZ Grain Trading. Estimate BDT ${CurrencyManager.format(totalAmount)}.`
         },
         ...prev.activities
       ];
@@ -994,7 +1042,7 @@ export default function App() {
           timestamp: "2026-07-26 18:50",
           user: "Ahsan Rahman",
           action: "AR Collection Deposited",
-          details: `Collected ৳${so.totalAmount.toLocaleString()} from Kazi Farms. Journal posted.`
+          details: `Collected ${CurrencyManager.format(so.totalAmount)} from Kazi Farms. Journal posted.`
         },
         ...prev.activities
       ];
@@ -1094,14 +1142,14 @@ export default function App() {
     // Search PO
     state.purchaseOrders.forEach((po) => {
       if (po.poNumber.toLowerCase().includes(query) || po.supplierName.toLowerCase().includes(query)) {
-        results.push({ category: "Purchase Order", name: po.poNumber, details: `Supplier: ${po.supplierName} | ৳${po.totalAmount.toLocaleString()}`, action: () => { setCurrentTab("procurement"); setSearchOpen(false); } });
+        results.push({ category: "Purchase Order", name: po.poNumber, details: `Supplier: ${po.supplierName} | ${CurrencyManager.format(po.totalAmount)}`, action: () => { setCurrentTab("procurement"); setSearchOpen(false); } });
       }
     });
 
     // Search Sales
     state.salesOrders.forEach((so) => {
       if (so.orderNumber.toLowerCase().includes(query) || so.customerName.toLowerCase().includes(query)) {
-        results.push({ category: "Sales Order", name: so.orderNumber, details: `Customer: ${so.customerName} | ৳${so.totalAmount.toLocaleString()}`, action: () => { setCurrentTab("sales"); setSearchOpen(false); } });
+        results.push({ category: "Sales Order", name: so.orderNumber, details: `Customer: ${so.customerName} | ${CurrencyManager.format(so.totalAmount)}`, action: () => { setCurrentTab("sales"); setSearchOpen(false); } });
       }
     });
 
@@ -1135,7 +1183,7 @@ export default function App() {
           ...prev,
           salesOrders: [newSO, ...prev.salesOrders],
           notifications: [
-            { id: `notif-${Date.now()}`, title: "New Sales Order Registered", message: `SO for Kazi Farms of ৳1,100,000 has been created.`, time: "Just Now", category: "System" as const, read: false },
+            { id: `notif-${Date.now()}`, title: "New Sales Order Registered", message: `SO for Kazi Farms of ${CurrencyManager.format(1100000)} has been created.`, time: "Just Now", category: "System" as const, read: false },
             ...prev.notifications
           ]
         };
@@ -1251,10 +1299,13 @@ export default function App() {
         <div className="absolute top-[20%] right-[10%] w-[30%] h-[40%] bg-emerald-500/5 dark:bg-emerald-500/8 rounded-full blur-[100px] pointer-events-none z-0"></div>
 
         {/* Left Sidebar */}
-        <div className="relative z-10 flex shrink-0">
+        <div className={`relative z-40 flex shrink-0 transition-all duration-300 ${mobileSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} fixed lg:static inset-y-0 left-0`}>
           <Sidebar
             currentTab={currentTab}
-            setCurrentTab={setCurrentTab}
+            setCurrentTab={(tab) => {
+              setCurrentTab(tab);
+              setMobileSidebarOpen(false);
+            }}
             collapsed={sidebarCollapsed}
             setCollapsed={setSidebarCollapsed}
             isBangla={isBangla}
@@ -1262,6 +1313,14 @@ export default function App() {
             permissions={currentUser?.permissions}
           />
         </div>
+
+        {/* Mobile Sidebar Overlay */}
+        {mobileSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-30 lg:hidden"
+            onClick={() => setMobileSidebarOpen(false)}
+          ></div>
+        )}
 
         {/* Main content grid */}
         <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
@@ -1293,6 +1352,7 @@ export default function App() {
             onOpenAuthModal={() => setAuthModalOpen(true)}
             onOpenRoleManagerModal={() => setRoleManagerOpen(true)}
             onSignOut={handleSignOut}
+            toggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
           />
 
           {/* Golden Flow Timeline Bar */}
@@ -1304,7 +1364,7 @@ export default function App() {
           />
 
           {/* Tab/Route View panel */}
-          <main className="flex-1 p-6 overflow-y-auto scrollbar-thin">
+          <main className="flex-1 p-3 sm:p-6 overflow-y-auto scrollbar-thin">
             <div className="max-w-7xl mx-auto animate-in fade-in duration-200">
               
               {!hasTabPermission(currentTab) ? (

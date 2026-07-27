@@ -417,6 +417,47 @@ app.post("/api/erp/state", async (req, res) => {
   }
 });
 
+// 2.5 POST: Bulk Approvals (for Offline Sync)
+app.post("/api/approvals/bulk", async (req, res) => {
+  try {
+    const { approvals } = req.body;
+    if (!Array.isArray(approvals)) return res.status(400).json({ error: "Invalid payload" });
+
+    const stateRecord = await db.select().from(agroErpState).limit(1);
+    const state = (stateRecord[0]?.stateJson as any) || initialERPState;
+
+    approvals.forEach((app: any) => {
+      if (app.type === "PR") {
+        const pr = state.requisitions.find((r: any) => r.id === app.id);
+        if (pr) {
+          pr.status = "Approved";
+          if (!pr.approvalChain) pr.approvalChain = [];
+          pr.approvalChain.push({
+            approver: app.signatoryName || "Offline Sync",
+            role: "SCM Manager",
+            actionDate: new Date().toISOString().split("T")[0],
+            comments: "Approved via background sync."
+          });
+        }
+      } else if (app.type === "PO") {
+        const po = state.purchaseOrders.find((p: any) => p.id === app.id);
+        if (po) po.status = "Approved";
+      }
+    });
+
+    await db.update(agroErpState)
+      .set({ stateJson: state, updatedAt: new Date() })
+      .where(eq(agroErpState.id, stateRecord[0].id));
+    
+    // Sync individual tables
+    await syncNormalizedTables(state);
+    
+    res.json({ status: "success", syncedCount: approvals.length });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 3. POST: Reset Database / State Seeding
 app.post("/api/erp/reset", async (req, res) => {
   try {

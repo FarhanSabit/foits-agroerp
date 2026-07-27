@@ -23,10 +23,15 @@ import {
   History,
   ShieldCheck,
   TrendingUp,
-  BarChart2
+  BarChart2,
+  Mic,
+  MicOff,
+  BrainCircuit
 } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell } from "recharts";
+import { SupplierPerformanceD3 } from "./SupplierPerformanceD3";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie } from "recharts";
 import { downloadGRNPDF } from "../utils/pdfGenerator";
+import { CurrencyManager } from "@agro-erp/shared-utils";
 import BarcodeScannerModal from "./BarcodeScannerModal";
 import { ESignatureModal } from "./ESignatureModal";
 import DocVersionHistoryModal from "./DocVersionHistoryModal";
@@ -41,6 +46,8 @@ import {
   DocStatus,
   SupplierType
 } from "../types";
+
+import { queueApproval, PendingApproval } from "../utils/offlineSync";
 
 interface ProcurementModuleProps {
   state: ERPState;
@@ -75,11 +82,74 @@ export default function ProcurementModule({
   isBangla,
   isLoading = false
 }: ProcurementModuleProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"suppliers" | "pr" | "rfq" | "po" | "grn" | "analytics">("suppliers");
+  const [activeSubTab, setActiveSubTab] = useState<"suppliers" | "pr" | "rfq" | "po" | "grn" | "analytics" | "intelligence">("suppliers");
   const [searchTerm, setSearchTerm] = useState("");
   const [newPrQty, setNewPRQty] = useState(20000);
   const [newPrItem, setNewPRItem] = useState("RM001");
   const [prErrors, setPrErrors] = useState<{ itemCode?: string; qty?: string } | null>(null);
+
+  // Voice Command State
+  const [isListening, setIsListening] = useState(false);
+  const [speechError, setSpeechError] = useState<string | null>(null);
+
+  const startVoiceRequisition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech Recognition not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = isBangla ? "bn-BD" : "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setSpeechError(null);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript.toLowerCase();
+      console.log("Voice Transcript:", transcript);
+      
+      let qty = 0;
+      let itemCode = "";
+
+      if (isBangla) {
+        const numMatch = transcript.match(/\d+/);
+        if (numMatch) qty = parseInt(numMatch[0]);
+        if (transcript.includes("ভুট্টা") || transcript.includes("rm001")) itemCode = "RM001";
+        else if (transcript.includes("সয়াবিন") || transcript.includes("rm002")) itemCode = "RM002";
+      } else {
+        const numMatch = transcript.match(/\d+/);
+        if (numMatch) qty = parseInt(numMatch[0]);
+        if (transcript.includes("maize") || transcript.includes("rm001")) itemCode = "RM001";
+        else if (transcript.includes("soybean") || transcript.includes("rm002")) itemCode = "RM002";
+      }
+
+      if (qty >= 100 && itemCode) {
+        setNewPRItem(itemCode);
+        setNewPRQty(qty);
+        alert(isBangla 
+          ? `ভয়েস কমান্ড সফল: ${itemCode}-এর জন্য ${qty} কেজি রিকোয়েস্ট করা হয়েছে।` 
+          : `Voice Command Success: Requested ${qty} KG for ${itemCode}.`);
+      } else {
+        setSpeechError(isBangla ? "দুঃখিত, আমি কমান্ডটি বুঝতে পারিনি।" : "Sorry, I couldn't understand the command.");
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      setSpeechError(event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
 
   // Multi-select PR selection state
   const [selectedPrIds, setSelectedPrIds] = useState<string[]>([]);
@@ -131,7 +201,31 @@ export default function ProcurementModule({
     alert(isBangla ? "ক্রয় রিকুইজিশন তৈরি সম্পন্ন হয়েছে!" : "Purchase Requisition created successfully!");
   };
 
-  const handleSignatureConfirm = (dataUrl: string, signatoryName: string, role: string) => {
+  const handleSignatureConfirm = async (dataUrl: string, signatoryName: string, role: string) => {
+    if (!navigator.onLine) {
+      // Offline: Queue the approval
+      const approvalsToQueue: PendingApproval[] = [];
+      if (sigTargetType === "bulk_pr") {
+        selectedPrIds.forEach(id => approvalsToQueue.push({ id, type: "PR", timestamp: Date.now(), signatureDataUrl: dataUrl, signatoryName }));
+      } else if (sigTargetType === "pr") {
+        approvalsToQueue.push({ id: sigTargetId, type: "PR", timestamp: Date.now(), signatureDataUrl: dataUrl, signatoryName });
+      } else if (sigTargetType === "po") {
+        approvalsToQueue.push({ id: sigTargetId, type: "PO", timestamp: Date.now(), signatureDataUrl: dataUrl, signatoryName });
+      }
+
+      for (const app of approvalsToQueue) {
+        await queueApproval(app);
+      }
+
+      alert(isBangla 
+        ? "আপনি অফলাইনে আছেন। আপনার অনুমোদনটি সংরক্ষিত হয়েছে এবং ইন্টারনেট সংযোগ ফিরে এলে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।" 
+        : "You are offline. Your approval has been queued and will automatically sync when connectivity is restored.");
+      
+      if (sigTargetType === "bulk_pr") setSelectedPrIds([]);
+      setIsSigModalOpen(false);
+      return;
+    }
+
     if (sigTargetType === "bulk_pr") {
       if (onBulkApprovePR) {
         onBulkApprovePR(selectedPrIds, dataUrl, signatoryName);
@@ -330,7 +424,8 @@ export default function ProcurementModule({
             { id: "rfq", labelEn: "RFQs & Bids", labelBn: "দরপত্র (RFQ)", icon: Mail },
             { id: "po", labelEn: "Purchase Orders", labelBn: "কার্যাদেশ (PO)", icon: FileCheck },
             { id: "grn", labelEn: "Goods Receipt (GRN)", labelBn: "জিআরএন রশিদ", icon: FileCheck2 },
-            { id: "analytics", labelEn: "Analytics", labelBn: "অ্যানালিটিক্স", icon: TrendingUp }
+            { id: "analytics", labelEn: "Analytics", labelBn: "অ্যানালিটিক্স", icon: TrendingUp },
+            { id: "intelligence", labelEn: "Supplier Intel", labelBn: "সাপ্লায়ার ইন্টেলিজেন্স", icon: BrainCircuit }
           ] as const
         ).map((tab) => {
           const Icon = tab.icon;
@@ -430,46 +525,133 @@ export default function ProcurementModule({
               <Plus className="h-3.5 w-3.5" />
               <span>{isBangla ? "পিআর যোগ করুন" : "Raise PR"}</span>
             </button>
+
+            <button
+              onClick={startVoiceRequisition}
+              className={`p-1.5 rounded-lg transition-all ${
+                isListening 
+                  ? "bg-rose-500 text-white animate-pulse" 
+                  : "bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-200"
+              }`}
+              title={isBangla ? "ভয়েস কমান্ড" : "Voice Command"}
+            >
+              {isListening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+        )}
+        {speechError && (
+          <div className="mt-2 text-[10px] text-rose-500 flex items-center gap-1 animate-in fade-in">
+            <AlertCircle className="h-3 w-3" />
+            {speechError}
           </div>
         )}
       </div>
 
       {/* MODULE TAB VIEWS */}
       <div className="glass-card overflow-hidden">
+
+        {activeSubTab === "intelligence" && (
+          <div className="p-6 space-y-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-white/10 rounded-2xl p-6 shadow-sm">
+                  <div className="flex justify-between items-center mb-6">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <TrendingUp className="h-4.5 w-4.5 text-indigo-500" />
+                        {isBangla ? "সরবরাহকারী পারফরম্যান্স ট্রেন্ড (D3)" : "Supplier Performance Trends (D3)"}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {isBangla ? "ঐতিহাসিক লিড টাইম বৈচিত্র্য এবং গুণমান স্কোর বিশ্লেষণ" : "Historical analysis of lead time variance vs. quality scores"}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <SupplierPerformanceD3 
+                    isBangla={isBangla} 
+                    darkMode={document.documentElement.classList.contains('dark')}
+                    data={[
+                      { supplier: "XYZ Grain", leadTimeVariance: 1.2, qualityScore: 94, month: "Jan" },
+                      { supplier: "XYZ Grain", leadTimeVariance: 2.5, qualityScore: 91, month: "Feb" },
+                      { supplier: "XYZ Grain", leadTimeVariance: 0.8, qualityScore: 96, month: "Mar" },
+                      { supplier: "XYZ Grain", leadTimeVariance: 3.1, qualityScore: 88, month: "Apr" },
+                      { supplier: "XYZ Grain", leadTimeVariance: 1.5, qualityScore: 92, month: "May" },
+                      { supplier: "XYZ Grain", leadTimeVariance: 1.1, qualityScore: 95, month: "Jun" },
+                      { supplier: "Dhaka Agri", leadTimeVariance: 0.5, qualityScore: 85, month: "Jan" },
+                      { supplier: "Dhaka Agri", leadTimeVariance: 1.1, qualityScore: 88, month: "Feb" },
+                      { supplier: "Dhaka Agri", leadTimeVariance: 0.4, qualityScore: 89, month: "Mar" },
+                      { supplier: "Dhaka Agri", leadTimeVariance: 0.9, qualityScore: 82, month: "Apr" },
+                      { supplier: "Dhaka Agri", leadTimeVariance: 1.3, qualityScore: 90, month: "May" },
+                      { supplier: "Dhaka Agri", leadTimeVariance: 0.7, qualityScore: 92, month: "Jun" },
+                    ]} 
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-indigo-500/[0.02] border border-indigo-500/20 rounded-2xl p-5">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                    <ShieldCheck className="h-4.5 w-4.5 text-emerald-500" />
+                    {isBangla ? "সাপ্লায়ার ঝুঁকি মূল্যায়ন" : "Supplier Risk Assessment"}
+                  </h3>
+                  <div className="space-y-4">
+                    {state.suppliers.slice(0, 3).map((s) => (
+                      <div key={s.id} className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-white/10 shadow-xs">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{s.name}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${s.rating > 4.5 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
+                            {s.rating}
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-white/5 h-1 rounded-full overflow-hidden">
+                          <div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${s.rating * 20}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-2 text-[9px] font-mono text-slate-400 uppercase">
+                          <span>Reliability Index</span>
+                          <span className="text-indigo-500 font-bold">{Math.round(s.rating * 20)}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Tab 1: Suppliers */}
         {activeSubTab === "suppliers" && (
           <div className="flex flex-col space-y-4 p-4">
             {/* Supplier Performance Widget */}
             <div className="bg-white/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-white/10 rounded-xl p-4">
-              <div className="flex flex-wrap items-center justify-between mb-4 gap-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-4">
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 font-mono uppercase tracking-wider flex items-center gap-2">
                   <BarChart2 className="h-4 w-4 text-indigo-500" />
                   {isBangla ? "সরবরাহকারীর কর্মক্ষমতা সারসংক্ষেপ" : "Supplier Performance Summary"}
                 </h4>
-                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg self-end md:self-auto">
                   <button
                     onClick={() => setSupplierDashboardTab("summary")}
-                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "summary" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                    className={`px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "summary" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
                   >
                     Summary
                   </button>
                   <button
                     onClick={() => setSupplierDashboardTab("scatter")}
-                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "scatter" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                    className={`px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "scatter" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
                   >
-                    Price vs Lead Time
+                    Price vs Lead
                   </button>
                   <button
                     onClick={() => setSupplierDashboardTab("benchmark")}
-                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "benchmark" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                    className={`px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-colors ${supplierDashboardTab === "benchmark" ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
                   >
-                    Benchmarking
+                    Benchmark
                   </button>
                 </div>
               </div>
 
-              <div className="h-72">
+              <div className="h-64 sm:h-72">
                 {supplierDashboardTab === "summary" && (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={filteredSuppliers} margin={{ top: 10, right: 30, left: 0, bottom: 40 }}>
@@ -1275,90 +1457,274 @@ export default function ProcurementModule({
       {selectedSupplierId && (() => {
         const supplier = state.suppliers.find(s => s.id === selectedSupplierId);
         if (!supplier) return null;
+        
+        // Data Calculations for Scorecard
         const supplierGRNs = state.goodsReceipts.filter(g => g.supplierName === supplier.name).map(g => ({
           ...g,
           qcStatus: g.items.every(i => i.qcPassed) ? "Pass" : g.items.some(i => i.qcPassed) ? "Partial" : "Fail"
         }));
+        
         const supplierPOs = state.purchaseOrders.filter(po => po.supplierId === selectedSupplierId);
         const totalSpend = supplierPOs.reduce((sum, po) => sum + (po.totalAmount || 0), 0);
-        const qcPassedCount = supplierGRNs.filter(g => g.qcStatus === "Pass").length;
-        const defectRate = supplierGRNs.length > 0 ? ((supplierGRNs.length - qcPassedCount) / supplierGRNs.length * 100).toFixed(1) : "0.0";
         
+        // Spend by Category for Donut Chart
+        const spendByCategoryMap: Record<string, number> = {};
+        supplierPOs.forEach(po => {
+          po.items.forEach(item => {
+            const invItem = state.inventory.find(i => i.code === item.itemCode);
+            const category = invItem?.category || "Other";
+            spendByCategoryMap[category] = (spendByCategoryMap[category] || 0) + item.totalPrice;
+          });
+        });
+        const spendByCategoryData = Object.entries(spendByCategoryMap).map(([name, value]) => ({ name, value }));
+        const PIE_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+
+        // Lead Time Timeline Data
+        const leadTimeData = supplierGRNs.map(grn => {
+          const po = state.purchaseOrders.find(p => p.poNumber === grn.poNumber);
+          if (!po) return null;
+          const orderDate = new Date(po.orderDate);
+          const receivedDate = new Date(grn.receivedDate);
+          const diffDays = Math.round((receivedDate.getTime() - orderDate.getTime()) / (1000 * 3600 * 24));
+          return {
+            date: grn.receivedDate,
+            leadTime: diffDays,
+            poNumber: grn.poNumber
+          };
+        }).filter(Boolean).sort((a, b) => new Date(a!.date).getTime() - new Date(b!.date).getTime());
+
+        // QC Performance Chart
+        const qcPerformanceData = supplierGRNs.map(grn => {
+          const totalItems = grn.items.length;
+          const passedItems = grn.items.filter(i => i.qcPassed).length;
+          const passRate = totalItems > 0 ? (passedItems / totalItems) * 100 : 0;
+          return {
+            date: grn.receivedDate,
+            passRate: Math.round(passRate),
+            grnNumber: grn.grnNumber
+          };
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const qcPassedCount = supplierGRNs.filter(g => g.qcStatus === "Pass").length;
+        const totalGRNs = supplierGRNs.length;
+        const overallQCPercentage = totalGRNs > 0 ? Math.round((qcPassedCount / totalGRNs) * 100) : 0;
+        const defectRate = supplierGRNs.length > 0 ? ((supplierGRNs.length - qcPassedCount) / supplierGRNs.length * 100).toFixed(1) : "0.0";
+
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-4xl rounded-2xl shadow-xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-              <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
-                <h3 className="font-bold text-slate-800 dark:text-slate-100 font-mono text-sm uppercase tracking-wider flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-indigo-500" />
-                  {isBangla ? "সরবরাহকারী স্কোরকার্ড" : "Supplier Scorecard"} - {supplier.name}
-                </h3>
-                <button
-                  onClick={() => setSelectedSupplierId(null)}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
-                >
-                  <X className="h-5 w-5" />
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-slate-950 w-full max-w-5xl max-h-[95vh] rounded-2xl border border-slate-200 dark:border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+              {/* Header */}
+              <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-600 dark:text-indigo-400">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest font-mono">
+                      {isBangla ? "সরবরাহকারী স্কোরকার্ড" : "Supplier Scorecard"} - {supplier.name}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono uppercase tracking-tighter">
+                      Vendor Code: {supplier.code} • {supplier.type}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedSupplierId(null)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
+                  <X className="h-5 w-5 text-slate-400" />
                 </button>
               </div>
-              
-              <div className="p-6 overflow-y-auto space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Avg Lead Time</p>
-                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{Math.round(supplier.creditDays / 2 + supplier.rating * 2)} days</p>
+
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+                
+                {/* Top Metrics Row */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200/50 dark:border-white/5 shadow-sm">
+                    <p className="text-[9px] sm:text-[10px] font-mono text-slate-500 uppercase font-bold mb-1 tracking-wider">Total Orders</p>
+                    <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-slate-100 font-mono">{supplierPOs.length}</p>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Defect Rate</p>
-                    <p className="text-xl font-bold text-rose-600 dark:text-rose-400">{defectRate}%</p>
+                  <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200/50 dark:border-white/5 shadow-sm">
+                    <p className="text-[9px] sm:text-[10px] font-mono text-slate-500 uppercase font-bold mb-1 tracking-wider">Total Expenditure</p>
+                    <p className="text-lg sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-mono">{CurrencyManager.format(totalSpend)}</p>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Total Spend</p>
-                    <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">৳{totalSpend.toLocaleString()}</p>
+                  <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200/50 dark:border-white/5 shadow-sm">
+                    <p className="text-[9px] sm:text-[10px] font-mono text-slate-500 uppercase font-bold mb-1 tracking-wider">Defect Rate</p>
+                    <p className={`text-lg sm:text-2xl font-bold font-mono ${Number(defectRate) < 5 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      {defectRate}%
+                    </p>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-white/5">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Overall Rating</p>
-                    <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{supplier.rating}/5.0</p>
+                  <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200/50 dark:border-white/5 shadow-sm">
+                    <p className="text-[9px] sm:text-[10px] font-mono text-slate-500 uppercase font-bold mb-1 tracking-wider">Overall Rating</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-slate-100 font-mono">{supplier.rating}</p>
+                      <div className="flex text-amber-500 text-[10px] sm:text-xs">
+                        {Array.from({length: 5}).map((_, i) => (
+                          <span key={i} className={i < Math.floor(supplier.rating) ? "opacity-100" : "opacity-30"}>★</span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 font-mono uppercase tracking-wider border-b border-slate-200 dark:border-white/10 pb-2">
-                    Historical Goods Receipts (GRN)
-                  </h4>
-                  {supplierGRNs.length > 0 ? (
-                    <div className="overflow-x-auto border border-slate-200/50 dark:border-white/10 rounded-xl">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 uppercase font-mono">
-                          <tr>
-                            <th className="p-3">GRN Number</th>
-                            <th className="p-3">Receipt Date</th>
-                            <th className="p-3">PO Reference</th>
-                            <th className="p-3">QC Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
-                          {supplierGRNs.map(grn => (
-                            <tr key={grn.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                              <td className="p-3 font-mono font-medium text-slate-800 dark:text-slate-200">{grn.grnNumber}</td>
-                              <td className="p-3 text-slate-600 dark:text-slate-400">{grn.receivedDate}</td>
-                              <td className="p-3 font-mono text-indigo-600 dark:text-indigo-400">{grn.poNumber}</td>
-                              <td className="p-3">
-                                <span className={`px-2 py-1 rounded text-[10px] font-bold ${
-                                  grn.qcStatus === "Pass" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" :
-                                  grn.qcStatus === "Fail" ? "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400" :
-                                  "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
-                                }`}>
-                                  {grn.qcStatus}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                {/* Main Charts Area */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  {/* Lead Time Timeline Chart */}
+                  <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200/50 dark:border-white/10">
+                    <h4 className="text-[10px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-indigo-500" />
+                      {isBangla ? "লিড টাইম ট্রেন্ড (দিন)" : "Lead Time Performance Timeline (Days)"}
+                    </h4>
+                    <div className="h-48 sm:h-64">
+                      {leadTimeData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={leadTimeData}>
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                            <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickFormatter={d => new Date(d).toLocaleDateString()} />
+                            <YAxis stroke="#94a3b8" fontSize={9} />
+                            <RechartsTooltip 
+                              contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '10px' }}
+                              labelStyle={{ fontSize: '9px', color: '#94a3b8' }}
+                            />
+                            <Line type="monotone" dataKey="leadTime" name="Lead Time" stroke="#6366f1" strokeWidth={2} dot={{ fill: '#6366f1', r: 3 }} activeDot={{ r: 5 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400 italic text-[11px]">No historical delivery data available</div>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-sm text-slate-500 italic">No historical GRNs found for this supplier.</p>
-                  )}
+                  </div>
+
+                  {/* QC Performance Chart */}
+                  <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200/50 dark:border-white/10">
+                    <h4 className="text-[10px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                      {isBangla ? "কিউসি পাসের হার (%)" : "QC Pass Rate Timeline (%)"}
+                    </h4>
+                    <div className="h-48 sm:h-64">
+                      {qcPerformanceData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={qcPerformanceData}>
+                            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                            <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickFormatter={d => new Date(d).toLocaleDateString()} />
+                            <YAxis stroke="#94a3b8" fontSize={9} domain={[0, 100]} />
+                            <RechartsTooltip 
+                              contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '10px' }}
+                              labelStyle={{ fontSize: '9px', color: '#94a3b8' }}
+                            />
+                            <Line type="monotone" dataKey="passRate" name="Pass Rate" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 3 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400 italic text-[11px]">No QC historical data available</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expenditure Donut Chart */}
+                  <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200/50 dark:border-white/10">
+                    <h4 className="text-[10px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <BarChart2 className="h-4 w-4 text-amber-500" />
+                      {isBangla ? "বিভাগ অনুযায়ী ব্যয় বিশ্লেষণ" : "Expenditure by Category"}
+                    </h4>
+                    <div className="h-48 sm:h-64 flex flex-col sm:flex-row items-center">
+                      {spendByCategoryData.length > 0 ? (
+                        <>
+                          <div className="flex-1 h-full w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={spendByCategoryData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={45}
+                                  outerRadius={65}
+                                  paddingAngle={5}
+                                  dataKey="value"
+                                >
+                                  {spendByCategoryData.map((_, index) => (
+                                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <RechartsTooltip 
+                                  formatter={(value: number) => CurrencyManager.format(value)}
+                                  contentStyle={{ fontSize: '10px' }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div className="w-full sm:w-1/2 space-y-1.5 mt-3 sm:mt-0 sm:pl-4">
+                            {spendByCategoryData.map((item, index) => (
+                              <div key={item.name} className="flex items-center justify-between text-[9px] sm:text-[10px]">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                                  <span className="text-slate-600 dark:text-slate-400 font-medium truncate max-w-[80px]">{item.name}</span>
+                                </div>
+                                <span className="text-slate-800 dark:text-slate-100 font-bold font-mono">{CurrencyManager.format(item.value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-slate-400 italic text-[11px]">No expenditure data available</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* GRN History Table */}
+                  <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200/50 dark:border-white/10">
+                    <h4 className="text-[10px] sm:text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <History className="h-4 w-4 text-indigo-500" />
+                      {isBangla ? "সাম্প্রতিক ডেলিভারি লগ" : "Recent Delivery Log (GRN)"}
+                    </h4>
+                    <div className="max-h-48 sm:max-h-64 overflow-y-auto pr-1">
+                      {supplierGRNs.length > 0 ? (
+                        <table className="w-full text-[9px] sm:text-[10px]">
+                          <thead className="text-slate-500 uppercase font-mono border-b border-slate-200 dark:border-white/10 sticky top-0 bg-slate-50 dark:bg-slate-900 z-10">
+                            <tr>
+                              <th className="pb-2 text-left font-bold">GRN #</th>
+                              <th className="pb-2 text-left font-bold">Date</th>
+                              <th className="pb-2 text-center font-bold">QC Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 dark:divide-white/5">
+                            {supplierGRNs.slice(0, 10).map(grn => (
+                              <tr key={grn.id} className="hover:bg-slate-200/50 dark:hover:bg-white/5">
+                                <td className="py-2 font-mono font-medium text-slate-800 dark:text-slate-200">{grn.grnNumber}</td>
+                                <td className="py-2 text-slate-500">{new Date(grn.receivedDate).toLocaleDateString()}</td>
+                                <td className="py-2 text-center">
+                                  <span className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-bold ${
+                                    grn.qcStatus === "Pass" ? "bg-emerald-500/10 text-emerald-600" :
+                                    grn.qcStatus === "Partial" ? "bg-amber-500/10 text-amber-600" : "bg-rose-500/10 text-rose-600"
+                                  }`}>
+                                    {grn.qcStatus}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400 italic text-[11px] py-10">No delivery logs found</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-white/10 flex flex-wrap justify-end gap-2 sm:gap-3">
+                <button 
+                  onClick={() => window.print()}
+                  className="px-3 sm:px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5 sm:h-4 w-4" />
+                  {isBangla ? "রিপোর্ট ডাউনলোড" : "Download PDF"}
+                </button>
+                <button 
+                  onClick={() => setSelectedSupplierId(null)}
+                  className="px-5 sm:px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] sm:text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all cursor-pointer"
+                >
+                  {isBangla ? "বন্ধ করুন" : "Close Scorecard"}
+                </button>
               </div>
             </div>
           </div>

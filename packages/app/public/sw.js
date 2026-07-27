@@ -67,3 +67,54 @@ self.addEventListener("fetch", (event) => {
       })
   );
 });
+
+// Sync Event (Offline approvals push)
+self.addEventListener("sync", (event) => {
+  if (event.tag === "sync-approvals") {
+    event.waitUntil(syncApprovals());
+  }
+});
+
+async function syncApprovals() {
+  const dbName = "AgroErpOfflineDB";
+  const storeName = "pendingApprovals";
+
+  const dbRequest = indexedDB.open(dbName, 1);
+  return new Promise((resolve, reject) => {
+    dbRequest.onsuccess = async () => {
+      const db = dbRequest.result;
+      if (!db.objectStoreNames.contains(storeName)) return resolve(null);
+      
+      const tx = db.transaction(storeName, "readonly");
+      const store = tx.objectStore(storeName);
+      const approvalsRequest = store.getAll();
+
+      approvalsRequest.onsuccess = async () => {
+        const approvals = approvalsRequest.result;
+        if (approvals.length === 0) return resolve(null);
+
+        try {
+          const response = await fetch("/api/approvals/bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approvals })
+          });
+
+          if (response.ok) {
+            const clearTx = db.transaction(storeName, "readwrite");
+            clearTx.objectStore(storeName).clear();
+            console.log("[Service Worker] Sync Successful. Approvals pushed to Neon.");
+            resolve(null);
+          } else {
+            reject(new Error("Sync failed with status: " + response.status));
+          }
+        } catch (err) {
+          console.error("[Service Worker] Sync Network Error:", err);
+          reject(err);
+        }
+      };
+    };
+    dbRequest.onerror = () => reject(dbRequest.error);
+  });
+}
+

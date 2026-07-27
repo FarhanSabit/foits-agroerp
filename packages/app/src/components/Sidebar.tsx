@@ -14,7 +14,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
 
 interface SidebarProps {
@@ -77,7 +78,7 @@ export default function Sidebar({
       id="erp-sidebar"
       className={`glass-sidebar text-slate-800 dark:text-slate-100 flex flex-col transition-all duration-300 h-screen sticky top-0 z-40 ${
         collapsed ? "w-16" : "w-64"
-      }`}
+      } shadow-2xl lg:shadow-none`}
     >
       {/* Brand Header */}
       <div className="p-4 border-b border-slate-200/50 dark:border-white/10 flex items-center justify-between">
@@ -88,7 +89,7 @@ export default function Sidebar({
             </div>
             <div className="flex flex-col">
               <span className="font-bold tracking-tight text-md leading-none text-slate-900 dark:text-white">AGRO ERP</span>
-              <span className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 mt-0.5 tracking-widest uppercase">
+              <span className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 mt-0.5 tracking-widest uppercase text-nowrap">
                 OITS Dhaka
               </span>
             </div>
@@ -99,12 +100,23 @@ export default function Sidebar({
             <Factory className="h-5 w-5" />
           </div>
         )}
+        
+        {/* Toggle Button - Only visible on desktop or when expanded on mobile */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md shrink-0 focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none transition-colors cursor-pointer"
+          className="hidden lg:flex text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md shrink-0 focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none transition-colors cursor-pointer"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </button>
+
+        {/* Close Button - Only visible on mobile */}
+        <button
+          onClick={() => setCurrentTab(currentTab)} // This will trigger the parent's close logic via setCurrentTab proxy in App.tsx
+          className="lg:hidden text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-md shrink-0 focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none transition-colors cursor-pointer"
+          aria-label="Close sidebar"
+        >
+          <X className="h-4 w-4" />
         </button>
       </div>
 

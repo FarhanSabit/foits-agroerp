@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
-  Smartphone
+  Smartphone,
+  Menu
 } from "lucide-react";
 import { Notification, DocStatus, UserAccount } from "../types";
 import { ShieldCheck, Lock, UserCheck } from "lucide-react";
@@ -42,6 +43,7 @@ interface HeaderProps {
   onOpenAuthModal?: () => void;
   onOpenRoleManagerModal?: () => void;
   onSignOut?: () => void;
+  toggleMobileSidebar?: () => void;
 }
 
 export default function Header({
@@ -63,7 +65,8 @@ export default function Header({
   currentUser,
   onOpenAuthModal,
   onOpenRoleManagerModal,
-  onSignOut
+  onSignOut,
+  toggleMobileSidebar
 }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -114,7 +117,7 @@ export default function Header({
   const showSO = role === "CFO";
 
   return (
-    <header className="sticky top-0 glass-header z-30 h-16 flex items-center justify-between px-6 transition-all duration-150 border-b border-slate-200/50 dark:border-white/10 relative">
+    <header className="sticky top-0 glass-header z-30 h-16 flex items-center justify-between px-4 sm:px-6 transition-all duration-150 border-b border-slate-200/50 dark:border-white/10 relative">
       {!isOnline && (
         <div className="absolute top-full left-0 right-0 bg-amber-500/95 text-slate-950 px-4 py-1.5 text-[11px] font-mono font-bold flex items-center justify-between shadow-md z-40 animate-in fade-in slide-in-from-top-1">
           <div className="flex items-center gap-2 truncate">
@@ -131,17 +134,25 @@ export default function Header({
         </div>
       )}
       
-      {/* Left: Search Bar trigger */}
-      <div className="flex items-center gap-4 w-1/4">
+      {/* Left: Mobile Toggle + Search Bar trigger */}
+      <div className="flex items-center gap-2 sm:gap-4 w-1/3 lg:w-1/4">
+        <button 
+          onClick={toggleMobileSidebar}
+          className="lg:hidden p-2 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none cursor-pointer"
+          aria-label="Toggle Menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
         <button
           onClick={triggerSearchOpen}
           className="w-full flex items-center justify-between gap-3 px-3 py-2 bg-white/30 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-white/10 transition-colors rounded-lg text-xs font-medium focus-visible:ring-2 focus-visible:ring-indigo-500 border border-slate-200/50 dark:border-white/10 outline-none"
         >
           <div className="flex items-center gap-2 truncate">
             <Search className="h-4 w-4 shrink-0" />
-            <span className="truncate">{isBangla ? "সার্চ করুন... (Ctrl + K)" : "Search... (Ctrl + K)"}</span>
+            <span className="hidden sm:inline truncate">{isBangla ? "সার্চ করুন... (Ctrl + K)" : "Search... (Ctrl + K)"}</span>
+            <span className="sm:hidden">{isBangla ? "সার্চ" : "Search"}</span>
           </div>
-          <span className="hidden md:inline bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none tracking-tight shrink-0">
+          <span className="hidden xl:inline bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono leading-none tracking-tight shrink-0">
             ⌘K
           </span>
         </button>

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { z } from "zod";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
 import {
   Package,
   Globe,
@@ -439,7 +439,7 @@ export default function OtherModules({
 
           {/* DYNAMIC TABLE: BATCH & SERIAL TRACKING VS BATCH EXPIRY MONITOR VS STANDARD STOCK LEDGER */}
           {inventoryFilter === "batch_serial" ? (
-            <div className="border border-indigo-500/20 rounded-xl overflow-hidden bg-indigo-500/[0.02]">
+            <div className="border border-indigo-500/20 rounded-xl overflow-hidden overflow-x-auto bg-indigo-500/[0.02]">
               <div className="p-3 bg-indigo-500/10 border-b border-indigo-500/20 flex justify-between items-center flex-wrap gap-2">
                 <span className="text-xs font-bold text-indigo-800 dark:text-indigo-300 font-mono uppercase tracking-widest flex items-center gap-1.5">
                   <QrCode className="h-4 w-4 text-indigo-500" />
@@ -696,7 +696,14 @@ export default function OtherModules({
                         />
                         <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                         <Bar dataKey="capacity" name="Max Capacity" fill="#cbd5e1" radius={[4, 4, 0, 0]} barSize={40} />
-                        <Bar dataKey="stock" name="Current Stock" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={40} />
+                        <Bar dataKey="stock" name="Current Stock" radius={[4, 4, 0, 0]} barSize={40}>
+                          {utilizationData.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.utilization > 90 ? "#ef4444" : entry.utilization < 20 ? "#f59e0b" : "#6366f1"} 
+                            />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   );
@@ -704,7 +711,7 @@ export default function OtherModules({
               </div>
             </div>
           ) : inventoryFilter === "expiry_warning" ? (
-            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden bg-amber-500/[0.02]">
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden overflow-x-auto bg-amber-500/[0.02]">
               <div className="p-3 bg-amber-500/10 border-b border-amber-500/20 flex justify-between items-center">
                 <span className="text-xs font-bold text-amber-800 dark:text-amber-300 font-mono uppercase tracking-widest flex items-center gap-1.5">
                   <Calendar className="h-4 w-4" />
@@ -802,7 +809,7 @@ export default function OtherModules({
             </div>
           ) : (
             /* Stock items ledger */
-            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden">
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                   <tr>

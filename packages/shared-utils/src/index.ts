@@ -7,13 +7,13 @@
  * Centralized CurrencyManager service for real-time currency conversion.
  */
 export class CurrencyManager {
-  private static rateToBDT: number = 1;
+  private static rateFromBDT: number = 1; // 1 BDT = X active currency
   private static symbol: string = "৳";
   private static code: string = "BDT";
 
-  public static setCurrency(code: string, rateToBDT: number, symbol: string) {
+  public static setCurrency(code: string, rateFromBDT: number, symbol: string) {
      this.code = code;
-     this.rateToBDT = rateToBDT;
+     this.rateFromBDT = rateFromBDT;
      this.symbol = symbol;
   }
   
@@ -21,8 +21,16 @@ export class CurrencyManager {
      return this.code;
   }
 
+  public static getRateFromBDT(): number {
+     return this.rateFromBDT;
+  }
+
+  public static convert(amountInBDT: number): number {
+     return amountInBDT * this.rateFromBDT;
+  }
+
   public static format(amount: number): string {
-     const converted = amount / this.rateToBDT;
+     const converted = this.convert(amount);
      return `${this.symbol}${converted.toLocaleString("en-US", {
        minimumFractionDigits: 0,
        maximumFractionDigits: 0,

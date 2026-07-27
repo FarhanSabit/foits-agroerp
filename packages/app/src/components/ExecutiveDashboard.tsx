@@ -14,6 +14,7 @@ import {
   GripVertical,
   PenTool
 } from "lucide-react";
+import { CurrencyManager } from "@agro-erp/shared-utils";
 import { ESignatureModal } from "./ESignatureModal";
 import VoiceCommandControl from "./VoiceCommandControl";
 import {
@@ -69,8 +70,9 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend
+  Tooltip as RechartsTooltip,
+  Legend,
+  Cell
 } from "recharts";
 
 interface ExecutiveDashboardProps {
@@ -140,8 +142,18 @@ export default function ExecutiveDashboard({
     } catch (e) {
       // fallback
     }
-    return ["kpi-metrics", "primary-chart", "pending-approvals", "operational-health"];
+    return ["kpi-metrics", "primary-chart", "finance-deviation", "pending-approvals", "operational-health"];
   });
+
+  const [forecastData] = useState([
+    { month: "Jan", expense: 12500000, forecast: 12000000 },
+    { month: "Feb", expense: 13200000, forecast: 13000000 },
+    { month: "Mar", expense: 11800000, forecast: 12500000 },
+    { month: "Apr", expense: 14500000, forecast: 14000000 },
+    { month: "May", expense: 15200000, forecast: 14500000 },
+    { month: "Jun", expense: 16800000, forecast: 16000000 },
+    { month: "Jul", expense: 17400000, forecast: 18000000 },
+  ]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -366,7 +378,7 @@ export default function ExecutiveDashboard({
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
         <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => state.currency === "USD" ? `$ ${(val / 1000).toFixed(0)} K` : `৳ ${(val / 100000).toFixed(0)} L`} />
-        <Tooltip content={<CustomTooltip />} />
+        <RechartsTooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Bar name={isBangla ? "রাজস্ব (বিক্রয়)" : "Revenue (Sales)"} dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
         <Bar name={isBangla ? "ব্যয় (ক্রয়)" : "Cost (Purchases)"} dataKey="purchases" fill="#f43f5e" radius={[4, 4, 0, 0]} />
@@ -391,7 +403,7 @@ export default function ExecutiveDashboard({
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
         <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => state.currency === "USD" ? `$ ${(val / 1000000).toFixed(2)} M` : `৳ ${(val / 10000000).toFixed(1)} Cr`} />
-        <Tooltip content={<CustomTooltip />} />
+        <RechartsTooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Area type="monotone" name={isBangla ? "ক্যাশ ব্যাংক ব্যালেন্স" : "Cash in Bank"} dataKey="cash" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorCash)" />
         <Area type="monotone" name={isBangla ? "আদায়যোগ্য বকেয়া" : "Accounts Receivable"} dataKey="receivables" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorReceivables)" />
@@ -417,7 +429,7 @@ export default function ExecutiveDashboard({
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
         <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => state.currency === "USD" ? `$ ${(val / 1000).toFixed(0)} K` : `৳ ${(val / 100000).toFixed(0)} L`} />
-        <Tooltip content={<CustomTooltip />} />
+        <RechartsTooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Area type="monotone" name={isBangla ? "কাঁচামাল মজুদ মূল্য" : "Raw Materials Valuation"} dataKey="rawMaterial" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorRaw)" />
         <Area type="monotone" name={isBangla ? "তৈরি পণ্য মজুদ মূল্য" : "Finished Goods Valuation"} dataKey="finishedGoods" stroke="#ec4899" strokeWidth={2} fillOpacity={1} fill="url(#colorFinished)" />
@@ -485,9 +497,9 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              {state.currency === "USD"
-                ? `$ ${((totalSales / 120) / 1000000).toFixed(2)} M`
-                : `৳ ${(totalSales / 10000000).toFixed(2)} Cr`
+              {CurrencyManager.getCode() === "BDT"
+                ? `৳ ${(totalSales / 10000000).toFixed(2)} Cr`
+                : `${CurrencyManager.getCode() === "USD" ? "$" : "€"} ${(CurrencyManager.convert(totalSales) / 1000000).toFixed(2)} M`
               }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-emerald-600 font-mono">
@@ -547,9 +559,9 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              {state.currency === "USD"
-                ? `$ ${((cashBalance / 120) / 1000000).toFixed(2)} M`
-                : `৳ ${(cashBalance / 10000000).toFixed(2)} Cr`
+              {CurrencyManager.getCode() === "BDT"
+                ? `৳ ${(cashBalance / 10000000).toFixed(2)} Cr`
+                : `${CurrencyManager.getCode() === "USD" ? "$" : "€"} ${(CurrencyManager.convert(cashBalance) / 1000000).toFixed(2)} M`
               }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-600 font-mono">
@@ -568,9 +580,9 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              {state.currency === "USD"
-                ? `$ ${((receivables / 120) / 1000000).toFixed(2)} M`
-                : `৳ ${(receivables / 10000000).toFixed(2)} Cr`
+              {CurrencyManager.getCode() === "BDT"
+                ? `৳ ${(receivables / 10000000).toFixed(2)} Cr`
+                : `${CurrencyManager.getCode() === "USD" ? "$" : "€"} ${(CurrencyManager.convert(receivables) / 1000000).toFixed(2)} M`
               }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-cyan-600 font-mono">
@@ -589,9 +601,9 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              {state.currency === "USD"
-                ? `$ ${((payables / 120) / 1000000).toFixed(2)} M`
-                : `৳ ${(payables / 10000000).toFixed(2)} Cr`
+              {CurrencyManager.getCode() === "BDT"
+                ? `৳ ${(payables / 10000000).toFixed(2)} Cr`
+                : `${CurrencyManager.getCode() === "USD" ? "$" : "€"} ${(CurrencyManager.convert(payables) / 1000000).toFixed(2)} M`
               }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-rose-500 font-mono">
@@ -703,7 +715,7 @@ if (widgetId === "primary-chart") {
                 const avgPoToGrn = poToGrnCount > 0 ? (totalPoToGrnDays / poToGrnCount).toFixed(1) : "4.2"; // mock if 0
 
                 return (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="bg-indigo-50 dark:bg-indigo-900/10 p-2 rounded border border-indigo-100 dark:border-indigo-500/20">
                       <p className="text-[9px] text-slate-500 uppercase tracking-wider">PR to PO Avg</p>
                       <p className="text-sm font-bold text-indigo-700 dark:text-indigo-400">{avgPrToPo} Days</p>
@@ -731,6 +743,87 @@ if (widgetId === "primary-chart") {
           </div>
         </div>
 
+      </div>
+    </SortableWidget>
+  );
+}
+
+if (widgetId === "finance-deviation") {
+  return (
+    <SortableWidget key="finance-deviation" id="finance-deviation">
+      <div className="glass-card p-6 border border-slate-200/50 dark:border-white/5">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <Activity className="h-4.5 w-4.5 text-amber-500" />
+              {isBangla ? "আর্থিক বিচ্যুতি বিশ্লেষণ" : "Finance Deviation Analysis"}
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {isBangla ? "পূর্বাভাসিত বনাম প্রকৃত ব্যয়ের তুলনা" : "Comparison of Forecasted vs. Actual Expenditure"}
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+              <span className="text-[10px] font-mono text-slate-500 uppercase">{isBangla ? "পূর্বাভাস" : "Forecast"}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+              <span className="text-[10px] font-mono text-slate-500 uppercase">{isBangla ? "প্রকৃত" : "Actual"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={forecastData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#334155" : "#e2e8f0"} />
+              <XAxis 
+                dataKey="month" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fill: darkMode ? "#94a3b8" : "#64748b" }}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{ fontSize: 10, fill: darkMode ? "#94a3b8" : "#64748b" }}
+                tickFormatter={(val) => `৳${(val / 1000000).toFixed(1)}M`}
+              />
+              <RechartsTooltip 
+                contentStyle={{ 
+                  backgroundColor: darkMode ? "#0f172a" : "#ffffff", 
+                  borderColor: darkMode ? "#1e293b" : "#e2e8f0",
+                  borderRadius: "12px",
+                  fontSize: "11px"
+                }}
+              />
+              <Bar dataKey="forecast" fill={darkMode ? "#1e293b" : "#f1f5f9"} radius={[4, 4, 0, 0]} name={isBangla ? "পূর্বাভাস" : "Forecast"} />
+              <Bar dataKey="actual" radius={[4, 4, 0, 0]} name={isBangla ? "প্রকৃত" : "Actual"}>
+                {forecastData.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.actual > entry.forecast ? "#f43f5e" : "#6366f1"} 
+                  />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 dark:border-white/5 pt-4">
+          {forecastData.slice(-4).map((d, i) => {
+            const deviation = ((d.actual - d.forecast) / d.forecast) * 100;
+            return (
+              <div key={i} className="space-y-1">
+                <p className="text-[10px] font-mono text-slate-400 uppercase">{d.month}</p>
+                <p className={`text-xs font-bold ${deviation > 0 ? "text-rose-500" : "text-emerald-500"}`}>
+                  {deviation > 0 ? "+" : ""}{deviation.toFixed(1)}%
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </SortableWidget>
   );
@@ -1071,10 +1164,7 @@ if (widgetId === "pending-approvals") {
                       <td className="p-2.5 font-sans font-medium text-slate-600 dark:text-slate-300">{tx.debitHead}</td>
                       <td className="p-2.5 font-sans font-medium text-slate-600 dark:text-slate-300">{tx.creditHead}</td>
                       <td className="p-2.5 pr-4 text-right font-bold text-slate-800 dark:text-slate-100">
-                        {state.currency === "USD" 
-                          ? `$ ${(tx.amount / 120).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                          : `৳ ${tx.amount.toLocaleString()}`
-                        }
+                        {CurrencyManager.format(tx.amount)}
                       </td>
                     </tr>
                   ))}

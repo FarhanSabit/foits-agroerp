@@ -1,6 +1,6 @@
 {
   "name": "Agro ERP",
   "description": "Enterprise-grade Agro Manufacturing, SCM, Production Planning, Finance, Logistics & MIS ERP Platform.",
-  "requestFramePermissions": ["camera"],
+  "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

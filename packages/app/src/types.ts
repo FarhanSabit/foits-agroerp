@@ -186,6 +186,7 @@ export interface PurchaseOrder {
     totalPrice: number;
   }[];
   deliveryStatus: "Pending" | "Partially Received" | "Received";
+  requiredDate: string;
   signatureUrl?: string;
   signedBy?: string;
   signedDate?: string;
@@ -481,7 +482,8 @@ export const initialPurchaseOrders: PurchaseOrder[] = [
     items: [
       { itemCode: "RM001", itemName: "Maize (Yellow Grade A)", qty: 20000, uom: "KG", unitPrice: 34.5, totalPrice: 690000 }
     ],
-    deliveryStatus: "Pending"
+    deliveryStatus: "Pending",
+    requiredDate: "2026-07-26"
   }
 ];
 
