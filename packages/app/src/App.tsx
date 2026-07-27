@@ -41,6 +41,7 @@ import ProcurementModule from "./components/ProcurementModule";
 import ProductionModule from "./components/ProductionModule";
 import OtherModules from "./components/OtherModules";
 import AIAssistant from "./components/AIAssistant";
+import OperationalExcellence from "./components/OperationalExcellence";
 
 import {
   Search,
@@ -564,6 +565,31 @@ export default function App() {
     if (currentTab !== "inventory") setCurrentTab("inventory");
   };
 
+  // Link Scanned Invoice to Goods Receipt Note
+  const handleLinkInvoiceToGRN = (grnId: string, invoiceUrl: string) => {
+    setState((prev) => {
+      const updatedGRNs = prev.goodsReceipts.map((grn) =>
+        grn.id === grnId ? { ...grn, scannedInvoiceUrl: invoiceUrl } : grn
+      );
+
+      const logs = [
+        {
+          timestamp: "2026-07-26 19:00",
+          user: "SCM Manager",
+          action: "Invoice Scanned & Linked",
+          details: `Linked physical invoice snapshot directly to GRN: ${prev.goodsReceipts.find(g => g.id === grnId)?.grnNumber || grnId}.`
+        },
+        ...prev.activities
+      ];
+
+      return {
+        ...prev,
+        goodsReceipts: updatedGRNs,
+        activities: logs
+      };
+    });
+  };
+
   // Step 8: Verify Inventory (Just advances flow step)
   const handleVerifyInventory = () => {
     setState((prev) => ({
@@ -931,6 +957,7 @@ export default function App() {
                   onApprovePO={handleApprovePO}
                   isBangla={isBangla}
                   role={userRole}
+                  darkMode={darkMode}
                 />
               )}
 
@@ -941,6 +968,7 @@ export default function App() {
                   onRaiseRFQ={handleRaiseRFQ}
                   onAwardSupplier={handleAwardSupplier}
                   onPostGRN={handlePostGRN}
+                  onLinkInvoiceToGRN={handleLinkInvoiceToGRN}
                   isBangla={isBangla}
                 />
               )}
@@ -953,6 +981,14 @@ export default function App() {
                   onRaisePR={handleRaisePR}
                   onLaunchWO={handleLaunchWO}
                   isBangla={isBangla}
+                />
+              )}
+
+              {currentTab === "operational_excellence" && (
+                <OperationalExcellence
+                  state={state}
+                  isBangla={isBangla}
+                  darkMode={darkMode}
                 />
               )}
 

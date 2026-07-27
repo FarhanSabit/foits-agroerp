@@ -177,6 +177,7 @@ export interface GoodsReceipt {
     qcComments: string;
   }[];
   postedToInventory: boolean;
+  scannedInvoiceUrl?: string;
 }
 
 export interface ProductBOM {

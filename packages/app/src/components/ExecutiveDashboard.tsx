@@ -32,6 +32,7 @@ interface ExecutiveDashboardProps {
   onApprovePO: (id: string) => void;
   isBangla: boolean;
   role: string;
+  darkMode?: boolean;
 }
 
 export default function ExecutiveDashboard({
@@ -39,9 +40,14 @@ export default function ExecutiveDashboard({
   onApprovePR,
   onApprovePO,
   isBangla,
-  role
+  role,
+  darkMode = false
 }: ExecutiveDashboardProps) {
   const [roleMode, setRoleMode] = useState<"ceo" | "cfo" | "coo">("ceo");
+
+  // Dynamic colors based on theme
+  const gridStroke = darkMode ? "#334155" : "#e2e8f0";
+  const axisStroke = darkMode ? "#64748b" : "#94a3b8";
 
   // Sum active bank accounts and receivables
   const cashBalance = state.ledger.find((a) => a.code === "1010")?.balance || 0;
@@ -109,9 +115,9 @@ export default function ExecutiveDashboard({
   const renderCEOChart = () => (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-        <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-        <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 100000).toFixed(0)}L`} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+        <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
+        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 100000).toFixed(0)}L`} />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Bar name={isBangla ? "রাজস্ব (বিক্রয়)" : "Revenue (Sales)"} dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -134,9 +140,9 @@ export default function ExecutiveDashboard({
             <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-        <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-        <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 10000000).toFixed(1)}Cr`} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+        <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
+        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 10000000).toFixed(1)}Cr`} />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Area type="monotone" name={isBangla ? "ক্যাশ ব্যাংক ব্যালেন্স" : "Cash in Bank"} dataKey="cash" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorCash)" />
@@ -160,9 +166,9 @@ export default function ExecutiveDashboard({
             <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-        <XAxis dataKey="month" stroke="#94a3b8" fontSize={11} tickLine={false} />
-        <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 100000).toFixed(0)}L`} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+        <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
+        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 100000).toFixed(0)}L`} />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Area type="monotone" name={isBangla ? "কাঁচামাল মজুদ মূল্য" : "Raw Materials Valuation"} dataKey="rawMaterial" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorRaw)" />

@@ -11,7 +11,10 @@ import {
   AlertTriangle,
   Search,
   Check,
-  X
+  X,
+  Camera,
+  RefreshCw,
+  CheckCircle2
 } from "lucide-react";
 import {
   ERPState,
@@ -30,6 +33,7 @@ interface ProcurementModuleProps {
   onRaiseRFQ: (prNumber: string) => void;
   onAwardSupplier: (rfqNumber: string, supplierCode: string) => void;
   onPostGRN: (poNumber: string, receivedItems: any[]) => void;
+  onLinkInvoiceToGRN?: (grnId: string, invoiceUrl: string) => void;
   isBangla: boolean;
 }
 
@@ -39,12 +43,99 @@ export default function ProcurementModule({
   onRaiseRFQ,
   onAwardSupplier,
   onPostGRN,
+  onLinkInvoiceToGRN,
   isBangla
 }: ProcurementModuleProps) {
   const [activeSubTab, setActiveSubTab] = useState<"suppliers" | "pr" | "rfq" | "po" | "grn">("suppliers");
   const [searchTerm, setSearchTerm] = useState("");
   const [newPrQty, setNewPRQty] = useState(20000);
   const [newPrItem, setNewPRItem] = useState("RM001");
+
+  // Camera Scanning States
+  const [scanningGRN, setScanningGRN] = useState<string | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [isOcrProcessing, setIsOcrProcessing] = useState(false);
+  const [ocrResult, setOcrResult] = useState<any | null>(null);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setCapturedImage(null);
+    setOcrResult(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      setCameraStream(stream);
+      setTimeout(() => {
+        const video = document.getElementById("scanner-video") as HTMLVideoElement;
+        if (video) {
+          video.srcObject = stream;
+          video.play();
+        }
+      }, 100);
+    } catch (err: any) {
+      console.error("Camera access failed:", err);
+      setCameraError("Camera access is not supported, or was blocked in the browser iframe. Running high-fidelity simulation.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+  };
+
+  const capturePhoto = () => {
+    const video = document.getElementById("scanner-video") as HTMLVideoElement;
+    if (video) {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg");
+        setCapturedImage(dataUrl);
+        stopCamera();
+        runSimulatedOCR();
+      }
+    } else {
+      simulateScan();
+    }
+  };
+
+  const runSimulatedOCR = () => {
+    setIsOcrProcessing(true);
+    setTimeout(() => {
+      setIsOcrProcessing(false);
+      setOcrResult({
+        invoiceNo: "INV-2026-9041",
+        supplier: "XYZ Grain Trading",
+        item: "Maize (Yellow Grade A)",
+        qty: "20,000 KG",
+        matchStatus: "Verified & Matched"
+      });
+    }, 1500);
+  };
+
+  const simulateScan = () => {
+    setCameraError(null);
+    setCapturedImage(null);
+    setOcrResult(null);
+    setIsOcrProcessing(true);
+    setTimeout(() => {
+      setCapturedImage("https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?auto=format&fit=crop&q=80&w=400&fm=webp");
+      setIsOcrProcessing(false);
+      setOcrResult({
+        invoiceNo: "INV-2026-9041",
+        supplier: "XYZ Grain Trading",
+        item: "Maize (Yellow Grade A)",
+        qty: "20,000 KG",
+        matchStatus: "Verified & Matched"
+      });
+    }, 1500);
+  };
 
   // Suppliers list filtering
   const filteredSuppliers = state.suppliers.filter(
@@ -404,15 +495,35 @@ export default function ProcurementModule({
                 ) : (
                   state.goodsReceipts.map((grn) => (
                     <tr key={grn.id} className="hover:bg-white/40 dark:hover:bg-white/[0.02] transition-colors">
-                      <td className="p-3.5 pl-6 font-mono font-bold text-slate-800 dark:text-slate-200">{grn.grnNumber}</td>
+                      <td className="p-3.5 pl-6 font-mono font-bold text-slate-800 dark:text-slate-200">
+                        <div className="flex items-center gap-2">
+                          <span>{grn.grnNumber}</span>
+                          {grn.scannedInvoiceUrl ? (
+                            <span className="text-[10px] bg-emerald-500/10 text-emerald-755 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-bold" title="Invoice Linked">
+                              📎 LINKED
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setScanningGRN(grn.id);
+                                startCamera();
+                              }}
+                              className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-indigo-400 font-bold px-2 py-0.5 rounded border border-indigo-200/50 dark:border-white/10 transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Camera className="h-3 w-3" />
+                              <span>{isBangla ? "স্ক্যান" : "Scan Invoice"}</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3.5 font-mono text-slate-500">{grn.poNumber}</td>
                       <td className="p-3.5 font-bold text-slate-800 dark:text-slate-100">{grn.supplierName}</td>
                       <td className="p-3.5 font-mono text-slate-400">{grn.receivedDate}</td>
                       <td className="p-3.5 font-medium text-slate-800 dark:text-slate-100">
                         {grn.items.map((item) => (
-                          <div key={item.itemCode}>
-                            {item.itemName} ({item.receivedQty.toLocaleString()} / {item.orderedQty.toLocaleString()} {item.uom})
-                          </div>
+                           <div key={item.itemCode}>
+                             {item.itemName} ({item.receivedQty.toLocaleString()} / {item.orderedQty.toLocaleString()} {item.uom})
+                           </div>
                         ))}
                       </td>
                       <td className="p-3.5">
@@ -438,6 +549,160 @@ export default function ProcurementModule({
         )}
 
       </div>
+
+      {/* CAMERA SCANNING MODAL */}
+      {scanningGRN && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-[#0b101f] border border-slate-200 dark:border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/40">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider font-mono">
+                  {isBangla ? "স্মার্ট ইনভয়েস স্ক্যানার ও ওসিআর" : "Paper Invoice Scanner & OCR"}
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Linking physical invoices directly to GRN: {state.goodsReceipts.find(g => g.id === scanningGRN)?.grnNumber}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  stopCamera();
+                  setScanningGRN(null);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Camera Preview Box */}
+              {!capturedImage && !cameraError && (
+                <div className="relative aspect-video rounded-xl bg-black border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col items-center justify-center">
+                  <video id="scanner-video" className="w-full h-full object-cover" playsInline muted />
+                  
+                  {/* Laser Scanning Animation Overlay */}
+                  <div className="absolute inset-0 pointer-events-none flex flex-col justify-between">
+                    <div className="border-t-2 border-l-2 border-indigo-500 h-6 w-6 m-4"></div>
+                    <div className="border-b-2 border-r-2 border-indigo-500 h-6 w-6 m-4 self-end"></div>
+                  </div>
+                  
+                  {/* Laser Beam */}
+                  <div className="absolute left-0 right-0 h-0.5 bg-indigo-500/80 shadow-[0_0_8px_rgba(99,102,241,0.8)] animate-bounce" style={{ animationDuration: "2.5s" }}></div>
+
+                  {/* Controls overlay */}
+                  <div className="absolute bottom-4 flex gap-2">
+                    <button
+                      onClick={capturePhoto}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-lg cursor-pointer"
+                    >
+                      <Camera className="h-4 w-4" />
+                      <span>{isBangla ? "ক্যাপচার করুন" : "Capture Invoice"}</span>
+                    </button>
+                    <button
+                      onClick={simulateScan}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-lg cursor-pointer border border-white/10"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span>{isBangla ? "সিমুলেট স্ক্যান" : "Simulate File Scan"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Camera Error / Fallback View */}
+              {cameraError && !capturedImage && (
+                <div className="p-6 border border-amber-500/20 bg-amber-500/5 rounded-xl text-center space-y-4">
+                  <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto animate-bounce" />
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-normal">
+                    {cameraError}
+                  </p>
+                  <button
+                    onClick={simulateScan}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all shadow-md mx-auto cursor-pointer"
+                  >
+                    {isBangla ? "ডকুমেন্ট ওসিআর ডেমো চালান" : "Run Document OCR Simulation"}
+                  </button>
+                </div>
+              )}
+
+              {/* OCR Processing Loader */}
+              {isOcrProcessing && (
+                <div className="p-8 text-center space-y-3">
+                  <div className="inline-block relative">
+                    <div className="h-10 w-10 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 font-mono tracking-widest animate-pulse">
+                    {isBangla ? "ওসিআর ইঞ্জিন বিশ্লেষণ করছে..." : "EXTRACTING INVOICE TEXT (OCR)..."}
+                  </p>
+                </div>
+              )}
+
+              {/* Scanned Image & OCR Result */}
+              {capturedImage && !isOcrProcessing && (
+                <div className="space-y-4">
+                  <div className="relative aspect-video rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden bg-black flex items-center justify-center">
+                    <img src={capturedImage} alt="Captured Invoice" className="w-full h-full object-cover opacity-75" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent"></div>
+                    <div className="absolute bottom-3 left-3 text-white text-[10px] font-mono tracking-wide bg-slate-900/80 px-2 py-0.5 rounded border border-white/10">
+                      SNAPSHOT CAPTURED
+                    </div>
+                  </div>
+
+                  {ocrResult && (
+                    <div className="p-4 border border-emerald-500/20 bg-emerald-500/5 rounded-xl space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-emerald-500/10">
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 font-mono flex items-center gap-1">
+                          <CheckCircle2 className="h-4 w-4" />
+                          {isBangla ? "ভেরিফাইড ও ম্যাচড" : "OCR VERIFICATION SUCCESSFUL"}
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">
+                          Score: 99.8%
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                        <div>
+                          <span className="text-slate-400">Invoice Ref:</span>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{ocrResult.invoiceNo}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Scanned Supplier:</span>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{ocrResult.supplier}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Extracted Item:</span>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{ocrResult.item}</p>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Extracted Qty:</span>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{ocrResult.qty}</p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          onClick={() => {
+                            if (onLinkInvoiceToGRN) {
+                              onLinkInvoiceToGRN(scanningGRN, capturedImage);
+                            }
+                            setScanningGRN(null);
+                          }}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Check className="h-4 w-4" />
+                          <span>{isBangla ? "লিংক ও সেভ করুন" : "Link Scanned Invoice to GRN"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

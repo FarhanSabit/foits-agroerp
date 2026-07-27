@@ -45,7 +45,8 @@ export default function Sidebar({
     { id: "hr", labelEn: "HR & Payroll", labelBn: "এইচআর ও পে-রোল", icon: UserRound },
     { id: "logistics", labelEn: "Logistics & Fleet", labelBn: "পরিবহন ও বহর", icon: Truck },
     { id: "crm", labelEn: "CRM & Customers", labelBn: "সিআরএম ও কাস্টমার", icon: MessageCircle },
-    { id: "support", labelEn: "Support & Tickets", labelBn: "সহায়তা ও টিকিট", icon: HelpCircle }
+    { id: "support", labelEn: "Support & Tickets", labelBn: "সহায়তা ও টিকিট", icon: HelpCircle },
+    { id: "operational_excellence", labelEn: "Operational Excellence", labelBn: "কার্যকরী উৎকর্ষ", icon: Sparkles }
   ];
 
   // Limit visibility based on user role
@@ -56,7 +57,7 @@ export default function Sidebar({
     }
     if (role === "Warehouse Admin") {
       // Warehouse Admin only handles storage, production, logistics, dashboard, and support
-      return !["finance", "hr", "crm", "commercial", "procurement", "sales"].includes(item.id);
+      return !["finance", "hr", "crm", "commercial", "procurement", "sales", "operational_excellence"].includes(item.id);
     }
     return true; // CFO sees all
   });
