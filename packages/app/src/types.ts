@@ -104,6 +104,13 @@ export interface StockBatch {
   locationZone?: string;
   qcPassCertificate?: string;
   status?: "Active" | "Quarantine" | "Expiring Soon" | "Expired" | "Depleted";
+  chemicalComposition?: {
+    moisture?: number; // %
+    protein?: number; // %
+    fat?: number; // %
+    fiber?: number; // %
+    ash?: number; // %
+  };
 }
 
 export interface DocVersion<T> {
@@ -393,11 +400,11 @@ export const initialInventory: InventoryItem[] = [
 ];
 
 export const initialBatches: StockBatch[] = [
-  { id: "b1", itemCode: "FG001", batchNumber: "BAT-BR-2607A", quantity: 1000, manufactureDate: "2026-07-20", expiryDate: "2027-01-20", warehouseId: "w2", serialNumbers: ["SN-BR-001", "SN-BR-002", "SN-BR-003"], originSupplierOrFarm: "Mymensingh Feed Mill #1", locationZone: "FG Depot - Bay A1", qcPassCertificate: "QC-2026-FG881", status: "Active" },
-  { id: "b2", itemCode: "FG001", batchNumber: "BAT-BR-2607B", quantity: 500, manufactureDate: "2026-07-22", expiryDate: "2026-08-10", warehouseId: "w2", serialNumbers: ["SN-BR-501", "SN-BR-502"], originSupplierOrFarm: "Mymensingh Feed Mill #1", locationZone: "FG Depot - Bay A2", qcPassCertificate: "QC-2026-FG892", status: "Expiring Soon" }, // Expiring in 15 days
-  { id: "b3", itemCode: "FG002", batchNumber: "BAT-FF-2606A", quantity: 800, manufactureDate: "2026-06-15", expiryDate: "2026-08-25", warehouseId: "w2", serialNumbers: ["SN-FF-101", "SN-FF-102"], originSupplierOrFarm: "Gazipur Aqua Extruder Plant", locationZone: "FG Depot - Bay B4", qcPassCertificate: "QC-2026-FF401", status: "Active" },
-  { id: "b4", itemCode: "RM003", batchNumber: "BAT-VIT-2602A", quantity: 2000, manufactureDate: "2026-02-10", expiryDate: "2026-07-15", warehouseId: "w1", serialNumbers: ["SN-VIT-001", "SN-VIT-002"], originSupplierOrFarm: "Dhaka Agri-Chemicals (SUP002)", locationZone: "Silo Store - Bay V1", qcPassCertificate: "QC-2026-VT102", status: "Expired" },
-  { id: "b5", itemCode: "RM001", batchNumber: "BAT-MZ-2605C", quantity: 15000, manufactureDate: "2026-05-01", expiryDate: "2026-09-15", warehouseId: "w1", serialNumbers: ["SN-MZ-801", "SN-MZ-802"], originSupplierOrFarm: "XYZ Grain Trading Co-op #4 (Khulna)", locationZone: "Silo 1 - Main Hopper", qcPassCertificate: "QC-2026-MZ910", status: "Active" }
+  { id: "b1", itemCode: "FG001", batchNumber: "BAT-BR-2607A", quantity: 1000, manufactureDate: "2026-07-20", expiryDate: "2027-01-20", warehouseId: "w2", serialNumbers: ["SN-BR-001", "SN-BR-002", "SN-BR-003"], originSupplierOrFarm: "Mymensingh Feed Mill #1", locationZone: "FG Depot - Bay A1", qcPassCertificate: "QC-2026-FG881", status: "Active", chemicalComposition: { protein: 22.5, moisture: 10.2, fat: 4.5, fiber: 3.8, ash: 5.1 } },
+  { id: "b2", itemCode: "FG001", batchNumber: "BAT-BR-2607B", quantity: 500, manufactureDate: "2026-07-22", expiryDate: "2026-08-10", warehouseId: "w2", serialNumbers: ["SN-BR-501", "SN-BR-502"], originSupplierOrFarm: "Mymensingh Feed Mill #1", locationZone: "FG Depot - Bay A2", qcPassCertificate: "QC-2026-FG892", status: "Expiring Soon", chemicalComposition: { protein: 21.8, moisture: 11.0, fat: 4.2, fiber: 4.0, ash: 5.5 } }, // Expiring in 15 days
+  { id: "b3", itemCode: "FG002", batchNumber: "BAT-FF-2606A", quantity: 800, manufactureDate: "2026-06-15", expiryDate: "2026-08-25", warehouseId: "w2", serialNumbers: ["SN-FF-101", "SN-FF-102"], originSupplierOrFarm: "Gazipur Aqua Extruder Plant", locationZone: "FG Depot - Bay B4", qcPassCertificate: "QC-2026-FF401", status: "Active", chemicalComposition: { protein: 30.0, moisture: 9.5, fat: 6.0, fiber: 2.5, ash: 6.2 } },
+  { id: "b4", itemCode: "RM003", batchNumber: "BAT-VIT-2602A", quantity: 2000, manufactureDate: "2026-02-10", expiryDate: "2026-07-15", warehouseId: "w1", serialNumbers: ["SN-VIT-001", "SN-VIT-002"], originSupplierOrFarm: "Dhaka Agri-Chemicals (SUP002)", locationZone: "Silo Store - Bay V1", qcPassCertificate: "QC-2026-VT102", status: "Expired", chemicalComposition: { protein: 5.0, moisture: 5.2, fat: 1.0, fiber: 0.5, ash: 15.0 } },
+  { id: "b5", itemCode: "RM001", batchNumber: "BAT-MZ-2605C", quantity: 15000, manufactureDate: "2026-05-01", expiryDate: "2026-09-15", warehouseId: "w1", serialNumbers: ["SN-MZ-801", "SN-MZ-802"], originSupplierOrFarm: "XYZ Grain Trading Co-op #4 (Khulna)", locationZone: "Silo 1 - Main Hopper", qcPassCertificate: "QC-2026-MZ910", status: "Active", chemicalComposition: { protein: 8.5, moisture: 13.5, fat: 3.8, fiber: 2.0, ash: 1.2 } }
 ];
 
 export const productBOMs: ProductBOM[] = [

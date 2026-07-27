@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { z } from "zod";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import {
   Package,
   Globe,
@@ -53,9 +54,10 @@ export default function OtherModules({
   const [ticketPriority, setTicketPriority] = useState(TicketPriority.MEDIUM);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannedMessage, setScannedMessage] = useState<string | null>(null);
+  const [selectedChemBatch, setSelectedChemBatch] = useState<any | null>(null);
 
   // Inventory Filter, Quick Sort, and Unit Conversion State
-  const [inventoryFilter, setInventoryFilter] = useState<"all" | "low_stock" | "high_stock" | "expiry_warning" | "batch_serial">("all");
+  const [inventoryFilter, setInventoryFilter] = useState<"all" | "low_stock" | "high_stock" | "expiry_warning" | "batch_serial" | "chemical_analysis">("all");
   const [inventorySort, setInventorySort] = useState<
     "default" | "name_asc" | "name_desc" | "stock_asc" | "stock_desc" | "expiry_asc" | "expiry_desc" | "value_desc"
   >("default");
@@ -387,6 +389,18 @@ export default function OtherModules({
                 <QrCode className="h-3 w-3 text-indigo-400" />
                 <span>{isBangla ? "ব্যাচ ও সিরিয়াল ট্র্যাকিং" : "Batch & Serial Tracking"}</span>
               </button>
+
+              <button
+                onClick={() => setInventoryFilter("chemical_analysis")}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer ${
+                  inventoryFilter === "chemical_analysis"
+                    ? "bg-indigo-600 text-white font-bold shadow-xs"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <TrendingUp className="h-3 w-3 text-indigo-400" />
+                <span>{isBangla ? "ল্যাব অ্যানালাইসিস" : "Lab Analysis"}</span>
+              </button>
             </div>
 
             {/* Quick Sort Dropdown */}
@@ -481,7 +495,15 @@ export default function OtherModules({
                             {b.status || "Active Quarantine"}
                           </span>
                         </td>
-                        <td className="p-3 pr-6 text-right">
+                        <td className="p-3 pr-6 text-right flex flex-wrap items-center justify-end gap-1.5">
+                          {b.chemicalComposition && (
+                            <button
+                              onClick={() => setSelectedChemBatch(b)}
+                              className="glass-button-amber text-[10px] px-2.5 py-1"
+                            >
+                              {isBangla ? "ল্যাব টেস্ট" : "Lab Test"}
+                            </button>
+                          )}
                           <button
                             onClick={() => alert(`Full traceability audit trail for Batch ${b.batchNumber} logged to QA system.`)}
                             className="glass-button-indigo text-[10px] px-2.5 py-1"
@@ -494,6 +516,95 @@ export default function OtherModules({
                   })}
                 </tbody>
               </table>
+            </div>
+          ) : inventoryFilter === "chemical_analysis" ? (
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden bg-indigo-50/10 dark:bg-indigo-900/[0.02] p-4 space-y-4 animate-in fade-in">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-500/20">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider font-mono">
+                    {isBangla ? "রাসায়নিক গঠন বিশ্লেষণ প্রবণতা" : "Chemical Composition Analysis Trends"}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isBangla ? "সময়ের সাথে সাথে কাঁচামালের রাসায়নিক গঠনের প্রবণতা" : "Trends in chemical composition of raw material lots over time"}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200/50 dark:border-white/10 p-4 h-[400px]">
+                {(() => {
+                  const chartData = state.batches
+                    .filter(b => b.chemicalComposition)
+                    .sort((a, b) => new Date(a.manufactureDate).getTime() - new Date(b.manufactureDate).getTime())
+                    .map(b => ({
+                      name: b.batchNumber,
+                      date: b.manufactureDate,
+                      Protein: b.chemicalComposition?.protein || 0,
+                      Moisture: b.chemicalComposition?.moisture || 0,
+                      Fat: b.chemicalComposition?.fat || 0,
+                      Fiber: b.chemicalComposition?.fiber || 0,
+                      Ash: b.chemicalComposition?.ash || 0,
+                    }));
+                  
+                  if (chartData.length === 0) {
+                    return (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-sm font-mono italic">
+                        {isBangla ? "কোনো রাসায়নিক ডেটা উপলব্ধ নেই" : "No chemical analysis data available."}
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.15} />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#888888" 
+                          fontSize={10} 
+                          tickLine={false}
+                          axisLine={false}
+                          tick={{ fill: '#888888' }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={50}
+                        />
+                        <YAxis 
+                          stroke="#888888" 
+                          fontSize={10} 
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => `${value}%`}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '8px',
+                            color: '#fff',
+                            fontSize: '12px'
+                          }} 
+                          labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
+                          labelFormatter={(label, payload) => {
+                            if (payload && payload.length > 0 && payload[0].payload) {
+                              return `${label} (${payload[0].payload.date})`;
+                            }
+                            return label;
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                        <Line type="monotone" dataKey="Protein" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                        <Line type="monotone" dataKey="Moisture" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="Fat" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="Fiber" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                        <Line type="monotone" dataKey="Ash" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </div>
             </div>
           ) : inventoryFilter === "expiry_warning" ? (
             <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden bg-amber-500/[0.02]">
@@ -560,21 +671,31 @@ export default function OtherModules({
                           )}
                         </td>
                         <td className="p-3 pr-6 text-right">
-                          {diffDays <= 0 ? (
-                            <button
-                              onClick={() => alert(`Batch ${b.batchNumber} quarantined for quality inspection.`)}
-                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                            >
-                              {isBangla ? "কোয়ারেন্টাইন করুন" : "Quarantine Batch"}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => alert(`FIFO Dispatch priority logged for Batch ${b.batchNumber}.`)}
-                              className="glass-button-indigo text-[10px] px-2.5 py-1"
-                            >
-                              {isBangla ? "এফআইএফও অগ্রাধিকার" : "Set FIFO Priority"}
-                            </button>
-                          )}
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
+                            {b.chemicalComposition && (
+                              <button
+                                onClick={() => setSelectedChemBatch(b)}
+                                className="glass-button-amber text-[10px] px-2.5 py-1"
+                              >
+                                {isBangla ? "ল্যাব টেস্ট" : "Lab Test"}
+                              </button>
+                            )}
+                            {diffDays <= 0 ? (
+                              <button
+                                onClick={() => alert(`Batch ${b.batchNumber} quarantined for quality inspection.`)}
+                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                              >
+                                {isBangla ? "কোয়ারেন্টাইন করুন" : "Quarantine Batch"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => alert(`FIFO Dispatch priority logged for Batch ${b.batchNumber}.`)}
+                                className="glass-button-indigo text-[10px] px-2.5 py-1"
+                              >
+                                {isBangla ? "এফআইএফও অগ্রাধিকার" : "Set FIFO Priority"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1333,6 +1454,74 @@ export default function OtherModules({
         title={isBangla ? "মজুদ আইটেম বারকোড স্ক্যানার" : "Inventory Item Barcode / QR Scanner"}
         isBangla={isBangla}
       />
+
+      {/* CHEMICAL COMPOSITION MODAL */}
+      {selectedChemBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 font-mono text-sm uppercase tracking-wider flex items-center gap-2">
+                <FileText className="h-4 w-4 text-indigo-500" />
+                {isBangla ? "রাসায়নিক বিশ্লেষণ রিপোর্ট" : "Chemical Composition Analysis"}
+              </h3>
+              <button
+                onClick={() => setSelectedChemBatch(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs font-mono text-slate-500 uppercase">{isBangla ? "ব্যাচ কোড" : "Batch Code"}</p>
+                  <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">{selectedChemBatch.batchNumber}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-mono text-slate-500 uppercase">{isBangla ? "আইটেম" : "Item"}</p>
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">{selectedChemBatch.itemCode}</p>
+                </div>
+              </div>
+              
+              <div className="bg-indigo-50/50 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/10 rounded-xl p-4">
+                <p className="text-[10px] font-mono text-indigo-500 font-bold uppercase mb-3 text-center tracking-widest border-b border-indigo-100 dark:border-indigo-500/10 pb-2">
+                  {isBangla ? "ল্যাব টেস্ট প্যারামিটার (শতকরা হার)" : "Lab Test Parameters (%)"}
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {Object.entries(selectedChemBatch.chemicalComposition || {}).map(([key, value]) => (
+                    <div key={key} className="flex justify-between items-center border-b border-slate-200/50 dark:border-white/5 pb-1">
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400 capitalize">{key}</span>
+                      <span className="text-xs font-bold font-mono text-slate-800 dark:text-slate-200">
+                        {typeof value === 'number' ? value.toFixed(2) : value}%
+                      </span>
+                    </div>
+                  ))}
+                  
+                  {(!selectedChemBatch.chemicalComposition || Object.keys(selectedChemBatch.chemicalComposition).length === 0) && (
+                    <div className="col-span-2 text-center py-4">
+                      <p className="text-xs text-slate-500 italic">{isBangla ? "এই ব্যাচের জন্য কোনো ল্যাব ডেটা নেই।" : "No lab data available for this batch."}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {selectedChemBatch.qcPassCertificate && (
+                <div className="flex items-center gap-2 text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/5 p-2 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                  <span className="font-bold">QC Cert:</span> {selectedChemBatch.qcPassCertificate}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/50 flex justify-end">
+              <Button onClick={() => setSelectedChemBatch(null)} variant="secondary" className="px-6">
+                {isBangla ? "বন্ধ করুন" : "Close"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

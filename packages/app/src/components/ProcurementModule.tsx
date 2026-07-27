@@ -46,6 +46,7 @@ interface ProcurementModuleProps {
   onAwardSupplier: (rfqNumber: string, supplierCode: string) => void;
   onPostGRN: (poNumber: string, receivedItems: any[], signatureDataUrl?: string, signatoryName?: string) => void;
   onApprovePR?: (id: string, signatureDataUrl?: string, signatoryName?: string) => void;
+  onBulkApprovePR?: (ids: string[], signatureDataUrl?: string, signatoryName?: string) => void;
   onApprovePO?: (id: string, signatureDataUrl?: string, signatoryName?: string) => void;
   onLinkInvoiceToGRN?: (grnId: string, invoiceUrl: string) => void;
   onRevertVersion?: (docType: "PR" | "PO", docId: string, versionNumber: number) => void;
@@ -64,6 +65,7 @@ export default function ProcurementModule({
   onAwardSupplier,
   onPostGRN,
   onApprovePR,
+  onBulkApprovePR,
   onApprovePO,
   onLinkInvoiceToGRN,
   onRevertVersion,
@@ -76,13 +78,16 @@ export default function ProcurementModule({
   const [newPrItem, setNewPRItem] = useState("RM001");
   const [prErrors, setPrErrors] = useState<{ itemCode?: string; qty?: string } | null>(null);
 
+  // Multi-select PR selection state
+  const [selectedPrIds, setSelectedPrIds] = useState<string[]>([]);
+
   // Quick Sort States for Procurement
   const [prSort, setPrSort] = useState<"number_asc" | "date_desc" | "date_asc" | "cost_desc" | "cost_asc">("date_desc");
   const [poSort, setPoSort] = useState<"number_asc" | "date_desc" | "date_asc" | "cost_desc" | "cost_asc" | "supplier_asc">("date_desc");
 
   // E-Signature Modal State
   const [isSigModalOpen, setIsSigModalOpen] = useState(false);
-  const [sigTargetType, setSigTargetType] = useState<"pr" | "po" | "grn">("pr");
+  const [sigTargetType, setSigTargetType] = useState<"pr" | "po" | "grn" | "bulk_pr">("pr");
   const [sigTargetId, setSigTargetId] = useState<string>("");
   const [sigDocTitle, setSigDocTitle] = useState<string>("");
   const [sigExtraData, setSigExtraData] = useState<any>(null);
@@ -120,7 +125,14 @@ export default function ProcurementModule({
   };
 
   const handleSignatureConfirm = (dataUrl: string, signatoryName: string, role: string) => {
-    if (sigTargetType === "pr" && onApprovePR) {
+    if (sigTargetType === "bulk_pr") {
+      if (onBulkApprovePR) {
+        onBulkApprovePR(selectedPrIds, dataUrl, signatoryName);
+      } else if (onApprovePR) {
+        selectedPrIds.forEach((id) => onApprovePR(id, dataUrl, signatoryName));
+      }
+      setSelectedPrIds([]);
+    } else if (sigTargetType === "pr" && onApprovePR) {
       onApprovePR(sigTargetId, dataUrl, signatoryName);
     } else if (sigTargetType === "po" && onApprovePO) {
       onApprovePO(sigTargetId, dataUrl, signatoryName);
@@ -129,9 +141,9 @@ export default function ProcurementModule({
     }
   };
 
-  const openSignatureModal = (type: "pr" | "po" | "grn", id: string, docTitle: string, extraData?: any, amount?: number) => {
+  const openSignatureModal = (type: "pr" | "po" | "grn" | "bulk_pr", id: string, docTitle: string, extraData?: any, amount?: number) => {
     if (amount && amount > 500000) {
-      setBioTargetDoc({ type: type as "pr" | "po", id, title: docTitle, amount });
+      setBioTargetDoc({ type: type === "bulk_pr" ? "pr" : (type as "pr" | "po"), id, title: docTitle, amount });
       setSigExtraData(extraData);
       setIsBioModalOpen(true);
       return;
@@ -456,107 +468,216 @@ export default function ProcurementModule({
         )}
 
         {/* Tab 2: Purchase Requisitions */}
-        {activeSubTab === "pr" && (
-          <div className="overflow-x-auto">
-            {/* PR Quick Sort Bar */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200/50 dark:border-white/10 flex justify-between items-center flex-wrap gap-2">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-wider">
-                {isBangla ? "ক্রয় রিকুইজিশন রেজিস্ট্রি (PR)" : "Purchase Requisitions Register"} ({state.requisitions.length})
-              </span>
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-[11px] font-mono text-slate-400 font-bold">
-                  {isBangla ? "কুইক সর্ট:" : "Quick Sort:"}
-                </span>
-                <select
-                  value={prSort}
-                  onChange={(e) => setPrSort(e.target.value as any)}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
-                >
-                  <option value="date_desc">{isBangla ? "তারিখ (নতুন প্রথম)" : "Requested Date (Newest)"}</option>
-                  <option value="date_asc">{isBangla ? "তারিখ (পুরাতন প্রথম)" : "Requested Date (Oldest)"}</option>
-                  <option value="cost_desc">{isBangla ? "প্রাক্কলিত ব্যয় (সর্বোচ্চ)" : "Est. Cost (Highest)"}</option>
-                  <option value="cost_asc">{isBangla ? "প্রাক্কলিত ব্যয় (সর্বনিম্ন)" : "Est. Cost (Lowest)"}</option>
-                  <option value="number_asc">{isBangla ? "পিআর কোড" : "PR Number (A-Z)"}</option>
-                </select>
-              </div>
-            </div>
+        {activeSubTab === "pr" && (() => {
+          const pendingPRs = state.requisitions.filter((r) => r.status === DocStatus.PENDING);
+          const allPendingSelected = pendingPRs.length > 0 && pendingPRs.every((r) => selectedPrIds.includes(r.id));
 
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
-                <tr>
-                  <th className="p-3.5 pl-6">{isBangla ? "রিকুইজিশন কোড" : "PR Number"}</th>
-                  <th className="p-3.5">{isBangla ? "বিভাগ" : "Department"}</th>
-                  <th className="p-3.5">{isBangla ? "আবেদনকারী" : "Requested By"}</th>
-                  <th className="p-3.5">{isBangla ? "রিকুয়েস্ট ডেট" : "Date"}</th>
-                  <th className="p-3.5">{isBangla ? "সামগ্রী" : "Requested Items"}</th>
-                  <th className="p-3.5">{isBangla ? "প্রাক্কলিত ব্যয়" : "Est. Cost"}</th>
-                  <th className="p-3.5">{isBangla ? "অনুমোদন স্ট্যাটাস" : "Approval Status"}</th>
-                  <th className="p-3.5 pr-6">{isBangla ? "অ্যাকশন" : "Action"}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
-                {[...state.requisitions]
-                  .sort((a, b) => {
-                    if (prSort === "number_asc") return a.prNumber.localeCompare(b.prNumber);
-                    if (prSort === "date_desc") return b.requestedDate.localeCompare(a.requestedDate);
-                    if (prSort === "date_asc") return a.requestedDate.localeCompare(b.requestedDate);
-                    if (prSort === "cost_desc") return (b.totalEstimatedValue || 0) - (a.totalEstimatedValue || 0);
-                    if (prSort === "cost_asc") return (a.totalEstimatedValue || 0) - (b.totalEstimatedValue || 0);
-                    return 0;
-                  })
-                  .map((pr) => (
-                  <tr key={pr.id} className="hover:bg-white/40 dark:hover:bg-white/[0.02] transition-colors">
-                    <td className="p-3.5 pl-6 font-mono font-bold text-slate-800 dark:text-slate-200">{pr.prNumber}</td>
-                    <td className="p-3.5 font-bold text-slate-700 dark:text-slate-200">{pr.department}</td>
-                    <td className="p-3.5 text-slate-600 dark:text-slate-300">{pr.requestedBy}</td>
-                    <td className="p-3.5 font-mono text-slate-400">{pr.requestedDate}</td>
-                    <td className="p-3.5 font-medium text-slate-800 dark:text-slate-100">
-                      {pr.items.map((item) => (
-                        <div key={item.itemCode}>
-                          {item.itemName} ({item.qty.toLocaleString()} {item.uom})
-                        </div>
-                      ))}
-                    </td>
-                    <td className="p-3.5 font-bold text-slate-800 dark:text-slate-200 font-mono">৳ {pr.totalEstimatedValue.toLocaleString()}</td>
-                    <td className="p-3.5">
-                      <div className="flex flex-col gap-1">
-                        <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full w-fit ${
-                          pr.status === DocStatus.APPROVED
-                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-                        }`}>
-                          {pr.status}
+          const handleToggleSelectAllPRs = () => {
+            if (allPendingSelected) {
+              setSelectedPrIds([]);
+            } else {
+              setSelectedPrIds(pendingPRs.map((r) => r.id));
+            }
+          };
+
+          const handleToggleSelectPR = (id: string) => {
+            setSelectedPrIds((prev) =>
+              prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+            );
+          };
+
+          return (
+            <div className="overflow-x-auto">
+              {/* PR Quick Sort Bar */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200/50 dark:border-white/10 flex justify-between items-center flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono uppercase tracking-wider">
+                    {isBangla ? "ক্রয় রিকুইজিশন রেজিস্ট্রি (PR)" : "Purchase Requisitions Register"} ({state.requisitions.length})
+                  </span>
+                  {pendingPRs.length > 0 && (
+                    <span className="text-[10px] font-mono bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold">
+                      {pendingPRs.length} {isBangla ? "পেন্ডিং অনুমোদন" : "Pending Approval"}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="text-[11px] font-mono text-slate-400 font-bold">
+                    {isBangla ? "কুইক সর্ট:" : "Quick Sort:"}
+                  </span>
+                  <select
+                    value={prSort}
+                    onChange={(e) => setPrSort(e.target.value as any)}
+                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-mono font-semibold text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                  >
+                    <option value="date_desc">{isBangla ? "তারিখ (নতুন প্রথম)" : "Requested Date (Newest)"}</option>
+                    <option value="date_asc">{isBangla ? "তারিখ (পুরাতন প্রথম)" : "Requested Date (Oldest)"}</option>
+                    <option value="cost_desc">{isBangla ? "প্রাক্কলিত ব্যয় (সর্বোচ্চ)" : "Est. Cost (Highest)"}</option>
+                    <option value="cost_asc">{isBangla ? "প্রাক্কলিত ব্যয় (সর্বনিম্ন)" : "Est. Cost (Lowest)"}</option>
+                    <option value="number_asc">{isBangla ? "পিআর কোড" : "PR Number (A-Z)"}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bulk Action Bar for Selected PRs */}
+              {selectedPrIds.length > 0 && (
+                <div className="p-3 mx-3 my-2 bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-xl border border-indigo-500/30 shadow-lg flex items-center justify-between flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-600/40 rounded-lg border border-indigo-400/30">
+                      <CheckCircle2 className="h-5 w-5 text-indigo-300" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold font-mono text-white flex items-center gap-2">
+                        <span>{selectedPrIds.length} {isBangla ? "টি রিকুইজিশন নির্বাচিত" : "Purchase Requisition(s) Selected"}</span>
+                        <span className="text-[10px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded border border-indigo-400/20">
+                          CFO Bulk Approval Mode
                         </span>
-                        {pr.signatureUrl && (
-                          <span className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-bold">
-                            <PenTool className="h-3 w-3" /> Signed: {pr.signedBy || "Manager"}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-3.5 pr-6">
-                      <div className="flex items-center gap-2">
-                        {pr.status === DocStatus.PENDING && (
-                          <button
-                            onClick={() => openSignatureModal("pr", pr.id, `Requisition ${pr.prNumber}`, null, pr.totalEstimatedValue)}
-                            className="glass-button-amber text-[11px] px-2.5 py-1.5 flex items-center gap-1 cursor-pointer"
-                            title="Sign & Approve Requisition"
-                          >
-                            <PenTool className="h-3.5 w-3.5" />
-                            <span>{isBangla ? "ই-স্বাক্ষর ও অনুমোদন" : "E-Sign & Approve"}</span>
-                          </button>
-                        )}
-                        {pr.status === DocStatus.APPROVED && (
-                          <button
-                            onClick={() => {
-                              onRaiseRFQ(pr.prNumber);
-                              alert(isBangla ? "আরএফকিউ দরপত্র প্রস্তুত করা হয়েছে!" : "RFQ generated from approved Requisition!");
-                            }}
-                            className="glass-button-indigo text-[11px] px-2.5 py-1.5 cursor-pointer"
-                          >
-                            {isBangla ? "আরএফকিউ তৈরি" : "Generate RFQ"}
-                          </button>
-                        )}
+                      </p>
+                      <p className="text-[10px] text-slate-300 font-mono mt-0.5">
+                        {isBangla ? "মোট প্রাক্কলিত মান:" : "Total Est. Value:"} <strong className="text-emerald-400 font-bold">৳ {state.requisitions
+                          .filter((r) => selectedPrIds.includes(r.id))
+                          .reduce((sum, r) => sum + (r.totalEstimatedValue || 0), 0)
+                          .toLocaleString()}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedPrIds([])}
+                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-mono font-semibold transition-colors cursor-pointer"
+                    >
+                      {isBangla ? "নির্বাচন বাতিল" : "Clear Selection"}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const selectedPRs = state.requisitions.filter((r) => selectedPrIds.includes(r.id));
+                        const totalVal = selectedPRs.reduce((sum, r) => sum + (r.totalEstimatedValue || 0), 0);
+                        openSignatureModal(
+                          "bulk_pr",
+                          "bulk-prs",
+                          `${selectedPrIds.length} Requisitions (Bulk Authorization)`,
+                          null,
+                          totalVal
+                        );
+                      }}
+                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-bold shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <PenTool className="h-4 w-4" />
+                      <span>
+                        {isBangla ? "বাল্ক ই-স্বাক্ষর ও অনুমোদন" : "Bulk E-Sign & Approve"} ({selectedPrIds.length})
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
+                  <tr>
+                    <th className="p-3.5 pl-4 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={allPendingSelected}
+                        onChange={handleToggleSelectAllPRs}
+                        disabled={pendingPRs.length === 0}
+                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={isBangla ? "সব পেন্ডিং রিকুইজিশন নির্বাচন করুন" : "Select All Pending Requisitions"}
+                      />
+                    </th>
+                    <th className="p-3.5">{isBangla ? "রিকুইজিশন কোড" : "PR Number"}</th>
+                    <th className="p-3.5">{isBangla ? "বিভাগ" : "Department"}</th>
+                    <th className="p-3.5">{isBangla ? "আবেদনকারী" : "Requested By"}</th>
+                    <th className="p-3.5">{isBangla ? "রিকুয়েস্ট ডেট" : "Date"}</th>
+                    <th className="p-3.5">{isBangla ? "সামগ্রী" : "Requested Items"}</th>
+                    <th className="p-3.5">{isBangla ? "প্রাক্কলিত ব্যয়" : "Est. Cost"}</th>
+                    <th className="p-3.5">{isBangla ? "অনুমোদন স্ট্যাটাস" : "Approval Status"}</th>
+                    <th className="p-3.5 pr-6">{isBangla ? "অ্যাকশন" : "Action"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
+                  {[...state.requisitions]
+                    .sort((a, b) => {
+                      if (prSort === "number_asc") return a.prNumber.localeCompare(b.prNumber);
+                      if (prSort === "date_desc") return b.requestedDate.localeCompare(a.requestedDate);
+                      if (prSort === "date_asc") return a.requestedDate.localeCompare(b.requestedDate);
+                      if (prSort === "cost_desc") return (b.totalEstimatedValue || 0) - (a.totalEstimatedValue || 0);
+                      if (prSort === "cost_asc") return (a.totalEstimatedValue || 0) - (b.totalEstimatedValue || 0);
+                      return 0;
+                    })
+                    .map((pr) => {
+                      const isSelected = selectedPrIds.includes(pr.id);
+                      const isPending = pr.status === DocStatus.PENDING;
+
+                      return (
+                        <tr
+                          key={pr.id}
+                          className={`transition-colors ${
+                            isSelected
+                              ? "bg-indigo-50/80 dark:bg-indigo-950/40"
+                              : "hover:bg-white/40 dark:hover:bg-white/[0.02]"
+                          }`}
+                        >
+                          <td className="p-3.5 pl-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectPR(pr.id)}
+                              disabled={!isPending}
+                              className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                            />
+                          </td>
+                          <td className="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-200">{pr.prNumber}</td>
+                          <td className="p-3.5 font-bold text-slate-700 dark:text-slate-200">{pr.department}</td>
+                          <td className="p-3.5 text-slate-600 dark:text-slate-300">{pr.requestedBy}</td>
+                          <td className="p-3.5 font-mono text-slate-400">{pr.requestedDate}</td>
+                          <td className="p-3.5 font-medium text-slate-800 dark:text-slate-100">
+                            {pr.items.map((item) => (
+                              <div key={item.itemCode}>
+                                {item.itemName} ({item.qty.toLocaleString()} {item.uom})
+                              </div>
+                            ))}
+                          </td>
+                          <td className="p-3.5 font-bold text-slate-800 dark:text-slate-200 font-mono">৳ {pr.totalEstimatedValue.toLocaleString()}</td>
+                          <td className="p-3.5">
+                            <div className="flex flex-col gap-1">
+                              <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full w-fit ${
+                                pr.status === DocStatus.APPROVED
+                                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+                                  : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                              }`}>
+                                {pr.status}
+                              </span>
+                              {pr.signatureUrl && (
+                                <span className="text-[9px] font-mono text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-bold">
+                                  <PenTool className="h-3 w-3" /> Signed: {pr.signedBy || "Manager"}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3.5 pr-6">
+                            <div className="flex items-center gap-2">
+                              {pr.status === DocStatus.PENDING && (
+                                <button
+                                  onClick={() => openSignatureModal("pr", pr.id, `Requisition ${pr.prNumber}`, null, pr.totalEstimatedValue)}
+                                  className="glass-button-amber text-[11px] px-2.5 py-1.5 flex items-center gap-1 cursor-pointer"
+                                  title="Sign & Approve Requisition"
+                                >
+                                  <PenTool className="h-3.5 w-3.5" />
+                                  <span>{isBangla ? "ই-স্বাক্ষর ও অনুমোদন" : "E-Sign & Approve"}</span>
+                                </button>
+                              )}
+                              {pr.status === DocStatus.APPROVED && (
+                                <button
+                                  onClick={() => {
+                                    onRaiseRFQ(pr.prNumber);
+                                    alert(isBangla ? "আরএফকিউ দরপত্র প্রস্তুত করা হয়েছে!" : "RFQ generated from approved Requisition!");
+                                  }}
+                                  className="glass-button-indigo text-[11px] px-2.5 py-1.5 cursor-pointer"
+                                >
+                                  {isBangla ? "আরএফকিউ তৈরি" : "Generate RFQ"}
+                                </button>
+                              )}
 
                         {/* Version History Trigger */}
                         <button
@@ -586,11 +707,13 @@ export default function ProcurementModule({
                       </div>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>
-        )}
+        );
+      })()}
 
         {/* Tab 3: RFQs & Bids Comparison Matrix */}
         {activeSubTab === "rfq" && (

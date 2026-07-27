@@ -518,6 +518,62 @@ export default function App() {
     });
   };
 
+  const handleBulkApprovePR = (ids: string[], signatureDataUrl?: string, signatoryName?: string) => {
+    setState((prev) => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const updatedPRs = prev.requisitions.map((r) =>
+        ids.includes(r.id)
+          ? {
+              ...r,
+              status: DocStatus.APPROVED,
+              signatureUrl: signatureDataUrl || r.signatureUrl,
+              signedBy: signatoryName || "Dr. Ahsan Rahman",
+              signedDate: todayStr,
+              approvalChain: [
+                {
+                  approver: signatoryName || "Dr. Ahsan Rahman",
+                  role: "CFO",
+                  actionDate: todayStr,
+                  comments: "Bulk budget authorized with E-Signature.",
+                  signatureUrl: signatureDataUrl
+                }
+              ]
+            }
+          : r
+      );
+
+      const logs = [
+        {
+          timestamp: new Date().toISOString().slice(0, 16).replace("T", " "),
+          user: signatoryName || "Ahsan Rahman",
+          action: "Bulk PR Budget Authorized (E-Signed)",
+          details: `${ids.length} PRs approved with attached manager e-signature.`
+        },
+        ...prev.activities
+      ];
+
+      const notifications = [
+        {
+          id: `notif-app-${Date.now()}`,
+          title: "Bulk PRs E-Signed & Approved",
+          message: `${ids.length} PRs were signed by ${signatoryName || "CFO"}.`,
+          time: "Just now",
+          category: "Approval" as const,
+          read: false
+        },
+        ...prev.notifications
+      ];
+
+      return {
+        ...prev,
+        requisitions: updatedPRs,
+        activities: logs,
+        notifications,
+        currentDemoStep: prev.currentDemoStep === 3 ? 4 : prev.currentDemoStep
+      };
+    });
+  };
+
   // Step 4: Raise RFQ
   const handleRaiseRFQ = (prNumber: string) => {
     setState((prev) => {
@@ -1247,6 +1303,7 @@ export default function App() {
                       onAwardSupplier={handleAwardSupplier}
                       onPostGRN={handlePostGRN}
                       onApprovePR={handleApprovePR}
+                      onBulkApprovePR={handleBulkApprovePR}
                       onApprovePO={handleApprovePO}
                       onLinkInvoiceToGRN={handleLinkInvoiceToGRN}
                       onRevertVersion={handleRevertVersion}
