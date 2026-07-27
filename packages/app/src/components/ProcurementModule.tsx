@@ -14,8 +14,12 @@ import {
   X,
   Camera,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  Download,
+  QrCode
 } from "lucide-react";
+import { downloadGRNPDF } from "../utils/pdfGenerator";
+import BarcodeScannerModal from "./BarcodeScannerModal";
 import {
   ERPState,
   Supplier,
@@ -35,7 +39,12 @@ interface ProcurementModuleProps {
   onPostGRN: (poNumber: string, receivedItems: any[]) => void;
   onLinkInvoiceToGRN?: (grnId: string, invoiceUrl: string) => void;
   isBangla: boolean;
+  isLoading?: boolean;
 }
+
+const Skeleton = ({ className }: { className?: string; key?: React.Key }) => (
+  <div className={`animate-pulse bg-slate-200 dark:bg-slate-800 rounded-lg ${className}`} />
+);
 
 export default function ProcurementModule({
   state,
@@ -44,12 +53,16 @@ export default function ProcurementModule({
   onAwardSupplier,
   onPostGRN,
   onLinkInvoiceToGRN,
-  isBangla
+  isBangla,
+  isLoading = false
 }: ProcurementModuleProps) {
   const [activeSubTab, setActiveSubTab] = useState<"suppliers" | "pr" | "rfq" | "po" | "grn">("suppliers");
   const [searchTerm, setSearchTerm] = useState("");
   const [newPrQty, setNewPRQty] = useState(20000);
   const [newPrItem, setNewPRItem] = useState("RM001");
+
+  // Barcode & QR Scanner state
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
 
   // Camera Scanning States
   const [scanningGRN, setScanningGRN] = useState<string | null>(null);
@@ -58,6 +71,56 @@ export default function ProcurementModule({
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isOcrProcessing, setIsOcrProcessing] = useState(false);
   const [ocrResult, setOcrResult] = useState<any | null>(null);
+
+  if (isLoading) {
+    return (
+      <div className="glass-card p-6 space-y-6">
+        <div className="flex justify-between items-center border-b border-slate-200/50 dark:border-white/10 pb-3 flex-wrap gap-2">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-3 w-72" />
+          </div>
+          <div className="flex gap-1 bg-white/45 dark:bg-white/5 p-1 rounded-xl">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-8 w-20" />
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 space-y-4">
+            <Skeleton className="h-10 w-full" />
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden">
+              <div className="p-3 bg-slate-50 dark:bg-slate-950/20 border-b border-slate-200/50 dark:border-white/10 flex justify-between">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <div className="p-4 space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-white/5">
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="h-3 w-1/4" />
+                    </div>
+                    <Skeleton className="h-7 w-20" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl p-4 space-y-3">
+              <Skeleton className="h-5 w-28" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const startCamera = async () => {
     setCameraError(null);
@@ -472,79 +535,104 @@ export default function ProcurementModule({
 
         {/* Tab 5: Goods Receipts */}
         {activeSubTab === "grn" && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
-                <tr>
-                  <th className="p-3.5 pl-6">{isBangla ? "জিআরএন রশিদ নম্বর" : "GRN Number"}</th>
-                  <th className="p-3.5">{isBangla ? "কার্যাদেশ নম্বর" : "PO Ref"}</th>
-                  <th className="p-3.5">{isBangla ? "সরবরাহকারী" : "Supplier"}</th>
-                  <th className="p-3.5">{isBangla ? "প্রাপ্তির তারিখ" : "Received Date"}</th>
-                  <th className="p-3.5">{isBangla ? "পণ্য ও পরিমাণ" : "Items Received"}</th>
-                  <th className="p-3.5">{isBangla ? "মান নিয়ন্ত্রণ কিউসি" : "Quality Check (QA)"}</th>
-                  <th className="p-3.5 pr-6 text-right">{isBangla ? "মজুদ এন্ট্রি" : "Inventory Ledger"}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
-                {state.goodsReceipts.length === 0 ? (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/50 dark:border-white/10 flex-wrap gap-2">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider font-mono">
+                  {isBangla ? "পণ্য প্রাপ্তি রশিদ ও কোড স্ক্যানার" : "Goods Receipt Notes (GRN) Registry"}
+                </h4>
+                <p className="text-[11px] text-slate-500">Verify warehouse GRN inflows, export PDF documents, and scan item barcodes.</p>
+              </div>
+              <button
+                onClick={() => setIsBarcodeModalOpen(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+              >
+                <QrCode className="h-4 w-4" />
+                <span>{isBangla ? "বারকোড স্ক্যানার" : "Scan Barcode / QR"}</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-200/50 dark:border-white/5 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">
-                      {isBangla ? "কোনো পণ্য প্রাপ্তি রসিদ এই ডেমো ট্র্যাকে তৈরি হয়নি।" : "No Goods Receipt records posted in the current active simulation tracker yet."}
-                    </td>
+                    <th className="p-3.5 pl-6">{isBangla ? "জিআরএন রশিদ নম্বর" : "GRN Number"}</th>
+                    <th className="p-3.5">{isBangla ? "কার্যাদেশ নম্বর" : "PO Ref"}</th>
+                    <th className="p-3.5">{isBangla ? "সরবরাহকারী" : "Supplier"}</th>
+                    <th className="p-3.5">{isBangla ? "প্রাপ্তির তারিখ" : "Received Date"}</th>
+                    <th className="p-3.5">{isBangla ? "পণ্য ও পরিমাণ" : "Items Received"}</th>
+                    <th className="p-3.5">{isBangla ? "মান নিয়ন্ত্রণ কিউসি" : "Quality Check (QA)"}</th>
+                    <th className="p-3.5 pr-6 text-right">{isBangla ? "অ্যাকশন & পিডিএফ" : "Actions / PDF"}</th>
                   </tr>
-                ) : (
-                  state.goodsReceipts.map((grn) => (
-                    <tr key={grn.id} className="hover:bg-white/40 dark:hover:bg-white/[0.02] transition-colors">
-                      <td className="p-3.5 pl-6 font-mono font-bold text-slate-800 dark:text-slate-200">
-                        <div className="flex items-center gap-2">
-                          <span>{grn.grnNumber}</span>
-                          {grn.scannedInvoiceUrl ? (
-                            <span className="text-[10px] bg-emerald-500/10 text-emerald-755 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-bold" title="Invoice Linked">
-                              📎 LINKED
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setScanningGRN(grn.id);
-                                startCamera();
-                              }}
-                              className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-indigo-400 font-bold px-2 py-0.5 rounded border border-indigo-200/50 dark:border-white/10 transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                              <Camera className="h-3 w-3" />
-                              <span>{isBangla ? "স্ক্যান" : "Scan Invoice"}</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3.5 font-mono text-slate-500">{grn.poNumber}</td>
-                      <td className="p-3.5 font-bold text-slate-800 dark:text-slate-100">{grn.supplierName}</td>
-                      <td className="p-3.5 font-mono text-slate-400">{grn.receivedDate}</td>
-                      <td className="p-3.5 font-medium text-slate-800 dark:text-slate-100">
-                        {grn.items.map((item) => (
-                           <div key={item.itemCode}>
-                             {item.itemName} ({item.receivedQty.toLocaleString()} / {item.orderedQty.toLocaleString()} {item.uom})
-                           </div>
-                        ))}
-                      </td>
-                      <td className="p-3.5">
-                        {grn.items[0].qcPassed ? (
-                          <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold font-mono px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <Check className="h-3 w-3" /> QC PASSED
-                          </span>
-                        ) : (
-                          <span className="bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold font-mono px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            <X className="h-3 w-3" /> QC FAILED
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3.5 pr-6 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold uppercase">
-                        {grn.postedToInventory ? "✔ POSTED" : "PENDING"}
+                </thead>
+                <tbody className="divide-y divide-slate-200/50 dark:divide-white/5">
+                  {state.goodsReceipts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400 font-medium">
+                        {isBangla ? "কোনো পণ্য প্রাপ্তি রসিদ এই ডেমো ট্র্যাকে তৈরি হয়নি।" : "No Goods Receipt records posted in the current active simulation tracker yet."}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    state.goodsReceipts.map((grn) => (
+                      <tr key={grn.id} className="hover:bg-white/40 dark:hover:bg-white/[0.02] transition-colors">
+                        <td className="p-3.5 pl-6 font-mono font-bold text-slate-800 dark:text-slate-200">
+                          <div className="flex items-center gap-2">
+                            <span>{grn.grnNumber}</span>
+                            {grn.scannedInvoiceUrl ? (
+                              <span className="text-[10px] bg-emerald-500/10 text-emerald-755 dark:text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-bold" title="Invoice Linked">
+                                📎 LINKED
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setScanningGRN(grn.id);
+                                  startCamera();
+                                }}
+                                className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-indigo-400 font-bold px-2 py-0.5 rounded border border-indigo-200/50 dark:border-white/10 transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <Camera className="h-3 w-3" />
+                                <span>{isBangla ? "স্ক্যান" : "Scan Invoice"}</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-mono text-slate-500">{grn.poNumber}</td>
+                        <td className="p-3.5 font-bold text-slate-800 dark:text-slate-100">{grn.supplierName}</td>
+                        <td className="p-3.5 font-mono text-slate-400">{grn.receivedDate}</td>
+                        <td className="p-3.5 font-medium text-slate-800 dark:text-slate-100">
+                          {grn.items.map((item) => (
+                             <div key={item.itemCode}>
+                               {item.itemName} ({item.receivedQty.toLocaleString()} / {item.orderedQty.toLocaleString()} {item.uom})
+                             </div>
+                          ))}
+                        </td>
+                        <td className="p-3.5">
+                          {grn.items[0].qcPassed ? (
+                            <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-bold font-mono px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <Check className="h-3 w-3" /> QC PASSED
+                            </span>
+                          ) : (
+                            <span className="bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 text-[10px] font-bold font-mono px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              <X className="h-3 w-3" /> QC FAILED
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3.5 pr-6 text-right">
+                          <button
+                            onClick={() => downloadGRNPDF(grn, isBangla)}
+                            className="text-[11px] bg-slate-100 hover:bg-indigo-50 text-indigo-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-indigo-400 font-bold px-2.5 py-1 rounded border border-slate-200 dark:border-white/10 transition-all inline-flex items-center gap-1 cursor-pointer"
+                            title="Download PDF GRN Document"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            <span>{isBangla ? "পিডিএফ" : "Download PDF"}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -703,6 +791,17 @@ export default function ProcurementModule({
           </div>
         </div>
       )}
+
+      {/* REUSABLE BARCODE SCANNER MODAL */}
+      <BarcodeScannerModal
+        isOpen={isBarcodeModalOpen}
+        onClose={() => setIsBarcodeModalOpen(false)}
+        onScanSuccess={(code) => {
+          console.log("Scanned code in Procurement:", code);
+        }}
+        title="Procurement Item Barcode & QR Scanner"
+        isBangla={isBangla}
+      />
     </div>
   );
 }

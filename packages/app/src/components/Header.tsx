@@ -31,6 +31,8 @@ interface HeaderProps {
   onResetDB: () => void;
   role: string;
   onChangeRole: (newRole: string) => void;
+  currency: "BDT" | "USD";
+  onToggleCurrency: (currency: "BDT" | "USD") => void;
 }
 
 export default function Header({
@@ -45,13 +47,22 @@ export default function Header({
   dbConnected,
   onResetDB,
   role,
-  onChangeRole
+  onChangeRole,
+  currency,
+  onToggleCurrency
 }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<string>("All");
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const filteredNotifications = notifications.filter((n) => {
+    if (notifFilter === "All") return true;
+    if (notifFilter === "Approvals" || notifFilter === "Approval") return n.category === "Approval";
+    return n.category === notifFilter;
+  });
 
   // Keyboard shortcut listener for Ctrl+K / Cmd+K
   useEffect(() => {
@@ -114,69 +125,108 @@ export default function Header({
           </button>
           
           {quickOpen && (
-            <div className="absolute right-0 mt-2 w-56 glass-card py-1 text-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50">
-              <div className="px-3 py-2 border-b border-slate-200/50 dark:border-white/10 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-black/[0.02] dark:bg-white/[0.02]">
-                {isBangla ? "নতুন ট্রানজেকশন" : "Raise Transaction"}
+            <div className="absolute right-0 mt-2 w-64 glass-card py-1 text-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 z-50">
+              <div className="px-3 py-2 border-b border-slate-200/50 dark:border-white/10 text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-black/[0.02] dark:bg-white/[0.02] flex justify-between items-center">
+                <span>{isBangla ? "নতুন অ্যাকশন" : "Raise Transaction"}</span>
+                <span className="text-[9px] bg-indigo-500/10 text-indigo-500 px-1.5 py-0.5 rounded-md font-mono">{role}</span>
               </div>
               
-              {showPR && (
-                <button
-                  onClick={() => {
-                    onQuickAction("create_pr");
-                    setQuickOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-                >
-                  {isBangla ? "ক্রয় রিকুইজিশন (PR)" : "Purchase Requisition (PR)"}
-                </button>
+              {role === "CFO" && (
+                <>
+                  <button
+                    onClick={() => {
+                      onQuickAction("approve_all_cfo");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 transition-colors font-medium text-xs flex items-center justify-between"
+                  >
+                    <span>{isBangla ? "সব অনুমোদন করুন" : "Approve All (PR/PO)"}</span>
+                    <span className="text-[9px] font-mono border border-emerald-500/20 px-1 rounded">CFO</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onQuickAction("financial_report_cfo");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors text-xs"
+                  >
+                    {isBangla ? "আর্থিক বিবরণী বিশ্লেষণ" : "Financial Report Preview"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      onQuickAction("create_so");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-slate-700/60 text-xs"
+                  >
+                    {isBangla ? "সেলস অর্ডার তৈরি করুন (SO)" : "Create Sales Order (SO)"}
+                  </button>
+                </>
               )}
-              
-              {showRFQ && (
-                <button
-                  onClick={() => {
-                    onQuickAction("create_rfq");
-                    setQuickOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-                >
-                  {isBangla ? "আরএফকিউ তৈরি (RFQ)" : "Generate RFQ"}
-                </button>
+
+              {role === "SCM Manager" && (
+                <>
+                  <button
+                    onClick={() => {
+                      onQuickAction("create_pr");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors text-xs"
+                  >
+                    {isBangla ? "ক্রয় রিকুইজিশন তৈরি (PR)" : "Raise Requisition (PR)"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      onQuickAction("create_rfq");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors text-xs"
+                  >
+                    {isBangla ? "দরপত্র আহ্বান তৈরি (RFQ)" : "Generate RFQ"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      onQuickAction("create_po");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors text-xs"
+                  >
+                    {isBangla ? "পারচেজ অর্ডার তৈরি (PO)" : "Create Purchase Order (PO)"}
+                  </button>
+                </>
               )}
-              
-              {showPO && (
-                <button
-                  onClick={() => {
-                    onQuickAction("create_po");
-                    setQuickOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-                >
-                  {isBangla ? "পারচেজ অর্ডার (PO)" : "Purchase Order (PO)"}
-                </button>
-              )}
-              
-              {showWO && (
-                <button
-                  onClick={() => {
-                    onQuickAction("issue_wo");
-                    setQuickOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors"
-                >
-                  {isBangla ? "উৎপাদন ওয়ার্ক অর্ডার (WO)" : "Work Order (WO)"}
-                </button>
-              )}
-              
-              {showSO && (
-                <button
-                  onClick={() => {
-                    onQuickAction("create_so");
-                    setQuickOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors border-t border-slate-100 dark:border-slate-700/60"
-                >
-                  {isBangla ? "সেলস অর্ডার (SO)" : "Sales Order (SO)"}
-                </button>
+
+              {role === "Warehouse Admin" && (
+                <>
+                  <button
+                    onClick={() => {
+                      onQuickAction("log_stock_intake");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-indigo-700 dark:text-indigo-400 transition-colors font-medium text-xs flex items-center justify-between"
+                  >
+                    <span>{isBangla ? "স্টক ইনটেক লগ করুন" : "Log Stock Intake (GRN)"}</span>
+                    <span className="text-[9px] font-mono border border-indigo-500/20 px-1 rounded">WH</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onQuickAction("issue_wo");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors text-xs"
+                  >
+                    {isBangla ? "উৎপাদন ওয়ার্ক অর্ডার (WO)" : "Issue Work Order (WO)"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      onQuickAction("physical_audit_warehouse");
+                      setQuickOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors text-xs"
+                  >
+                    {isBangla ? "বাস্তব স্টক নিরীক্ষা" : "Force Physical Stock Audit"}
+                  </button>
+                </>
               )}
             </div>
           )}
@@ -207,6 +257,19 @@ export default function Header({
         >
           <Languages className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           <span className="font-mono tracking-tight text-[11px]">{isBangla ? "EN" : "বাংলা"}</span>
+        </button>
+
+        {/* Currency Toggle */}
+        <button
+          onClick={() => {
+            const nextCurr = currency === "USD" ? "BDT" : "USD";
+            onToggleCurrency(nextCurr);
+          }}
+          className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 border border-transparent hover:border-slate-200/50 dark:hover:border-white/10 rounded-lg transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 outline-none flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+          title={isBangla ? "মুদ্রা পরিবর্তন করুন" : "Toggle Currency"}
+        >
+          <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono text-xs">{currency === "USD" ? "$" : "৳"}</span>
+          <span className="font-mono tracking-tight text-[11px]">{currency === "USD" ? "USD" : "BDT"}</span>
         </button>
 
         {/* Theme Toggle */}
@@ -247,13 +310,31 @@ export default function Header({
                   {unreadCount} {isBangla ? "নতুন" : "NEW"}
                 </span>
               </div>
+
+              {/* Category-based Filters */}
+              <div className="px-3 py-2 border-b border-slate-200/50 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/40 flex items-center gap-1 overflow-x-auto scrollbar-none">
+                {["All", "Approvals", "Inventory", "Finance", "System"].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setNotifFilter(cat)}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all cursor-pointer shrink-0 font-mono ${
+                      notifFilter === cat
+                        ? "bg-indigo-600 text-white shadow-xs"
+                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
               <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/60">
-                {notifications.length === 0 ? (
+                {filteredNotifications.length === 0 ? (
                   <div className="p-4 text-center text-slate-400 text-xs">
-                    {isBangla ? "কোনো নোটিফিকেশন নেই" : "No notifications right now."}
+                    {isBangla ? "কোনো নোটিফিকেশন পাওয়া যায়নি" : "No notifications found in this category."}
                   </div>
                 ) : (
-                  notifications.map((n) => {
+                  filteredNotifications.map((n) => {
                     const isRead = n.read;
                     return (
                       <div

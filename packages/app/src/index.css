@@ -48,3 +48,10 @@
   @apply bg-sky-500/10 dark:bg-sky-500/20 text-sky-700 dark:text-sky-400 border border-sky-500/20 dark:border-sky-500/30 font-mono font-bold rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider;
 }
 
+/* Custom smooth theme transition */
+html, body, .flex, main, header, div, p, span, button, input, select, table, th, td {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 500ms;
+}
+

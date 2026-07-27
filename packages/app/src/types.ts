@@ -326,6 +326,7 @@ export interface ERPState {
   forecastQty: number;
   selectedProductId: string;
   currentDemoStep: number; // 0-11 representing the Golden Flow step
+  currency?: "BDT" | "USD";
 }
 
 // INITIAL SEED DATA

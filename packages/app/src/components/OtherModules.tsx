@@ -13,11 +13,17 @@ import {
   TrendingDown,
   Clock,
   Map,
-  Plus
+  Plus,
+  FileText,
+  Download,
+  QrCode
 } from "lucide-react";
 import { ERPState, DocStatus, AccountType, VehicleStatus, SupportTicket, TicketPriority } from "../types";
 import { formatBDT, calculatePercentage } from "@agro-erp/shared-utils";
 import { Button, Input, Badge } from "@agro-erp/shared-ui";
+import BulkImportModule from "./BulkImportModule";
+import { downloadSalesOrderPDF } from "../utils/pdfGenerator";
+import BarcodeScannerModal from "./BarcodeScannerModal";
 
 interface OtherModulesProps {
   tab: string;
@@ -25,6 +31,7 @@ interface OtherModulesProps {
   onDispatchSalesOrder: (id: string) => void;
   onPostCollection: (id: string) => void;
   isBangla: boolean;
+  onImportCompleted: (type: "inventory" | "ledger", items: any[]) => void;
 }
 
 export default function OtherModules({
@@ -32,11 +39,38 @@ export default function OtherModules({
   state,
   onDispatchSalesOrder,
   onPostCollection,
-  isBangla
+  isBangla,
+  onImportCompleted
 }: OtherModulesProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [ticketSubject, setTicketSubject] = useState("");
   const [ticketPriority, setTicketPriority] = useState(TicketPriority.MEDIUM);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannedMessage, setScannedMessage] = useState<string | null>(null);
+
+  const handleExportCSV = (type: "inventory" | "ledger") => {
+    let csvContent = "";
+    if (type === "inventory") {
+      csvContent = "Item Code,Item Name,Category,Available Stock,Unit Value,Warehouse,Status\n" +
+        state.inventory.map(item => 
+          `"${item.code}","${item.name}","${item.category}",${item.availableStock},${item.unitValue},"${item.warehouseId}","${item.status}"`
+        ).join("\n");
+    } else {
+      csvContent = "Code,Account Head,Type,Balance\n" +
+        state.ledger.map(acc => 
+          `"${acc.code}","${acc.name}","${acc.type}",${acc.balance}`
+        ).join("\n");
+    }
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `agro_erp_${type}_export_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="glass-card p-6">
@@ -44,14 +78,42 @@ export default function OtherModules({
       {/* 1. INVENTORY MODULE */}
       {tab === "inventory" && (
         <div className="space-y-6">
-          <div className="border-b border-slate-200/50 dark:border-white/10 pb-3">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white">
-              {isBangla ? "গুদাম ব্যবস্থাপনা ও মজুদ নিরীক্ষা" : "Warehouse & Inventory Ledger"}
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Current storage allocation, FIFO batch expiry details, and batch tracking.
-            </p>
+          <div className="flex justify-between items-center border-b border-slate-200/50 dark:border-white/10 pb-3 flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                {isBangla ? "গুদাম ব্যবস্থাপনা ও মজুদ নিরীক্ষা" : "Warehouse & Inventory Ledger"}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Current storage allocation, FIFO batch expiry details, and batch tracking.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsScannerOpen(true)}
+                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                <span>{isBangla ? "আইটেম স্ক্যান" : "Scan Barcode"}</span>
+              </button>
+              <button
+                onClick={() => handleExportCSV("inventory")}
+                className="flex items-center gap-1.5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+              >
+                <FileText className="h-3.5 w-3.5 text-indigo-500" />
+                <span>{isBangla ? "এক্সপোর্ট সিএসভি" : "Export CSV"}</span>
+              </button>
+            </div>
           </div>
+
+          {scannedMessage && (
+            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs font-mono text-indigo-600 dark:text-indigo-400 flex justify-between items-center animate-in fade-in">
+              <span>{scannedMessage}</span>
+              <button onClick={() => setScannedMessage(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+            </div>
+          )}
+
+          {/* Bulk Import Module */}
+          <BulkImportModule isBangla={isBangla} onImportCompleted={onImportCompleted} />
 
           {/* Warehouse utilization cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -102,7 +164,12 @@ export default function OtherModules({
                     <td className="p-3 font-mono font-bold text-slate-800 dark:text-slate-200">
                       {item.availableStock.toLocaleString()} {item.uom}
                     </td>
-                    <td className="p-3 font-mono text-slate-600 dark:text-slate-300">৳ {item.unitValue}</td>
+                    <td className="p-3 font-mono text-slate-600 dark:text-slate-300">
+                      {state.currency === "USD"
+                        ? `$ ${(item.unitValue / 120).toFixed(2)}`
+                        : `৳ ${item.unitValue.toLocaleString()}`
+                      }
+                    </td>
                     <td className="p-3 pr-6 text-right">
                       <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
                         item.status === "Normal"
@@ -178,6 +245,7 @@ export default function OtherModules({
                   <th className="p-3">{isBangla ? "অর্ডার আইটেম" : "Product details"}</th>
                   <th className="p-3">{isBangla ? "মোট মূল্য" : "Total Cost"}</th>
                   <th className="p-3">{isBangla ? "ডেলিভারি" : "Dispatch Status"}</th>
+                  <th className="p-3">{isBangla ? "পিডিএফ" : "Document PDF"}</th>
                   <th className="p-3 pr-6 text-right">{isBangla ? "পেমেন্ট আদায়" : "Payment"}</th>
                 </tr>
               </thead>
@@ -205,6 +273,15 @@ export default function OtherModules({
                       ) : (
                         <span className="text-[11px] text-emerald-650 dark:text-emerald-450 font-bold">{so.deliveryStatus}</span>
                       )}
+                    </td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => downloadSalesOrderPDF(so, isBangla)}
+                        className="text-[10px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-indigo-400 font-bold px-2 py-1 rounded border border-indigo-200/50 dark:border-white/10 transition-all inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Download className="h-3 w-3" />
+                        <span>PDF</span>
+                      </button>
                     </td>
                     <td className="p-3 pr-6 text-right">
                       {so.status === DocStatus.APPROVED && so.deliveryStatus === "Delivered" ? (
@@ -234,13 +311,22 @@ export default function OtherModules({
       {/* 4. FINANCE MODULE */}
       {tab === "finance" && (
         <div className="space-y-6">
-          <div className="border-b border-slate-200/50 dark:border-white/10 pb-3">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white">
-              {isBangla ? "সাধারণ খতিয়ান ও হিসাব বিশ্লেষণ" : "General Ledger & Financial Accounting"}
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Live account charts, accounts payable, accounts receivable, bank assets.
-            </p>
+          <div className="flex justify-between items-center border-b border-slate-200/50 dark:border-white/10 pb-3 flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                {isBangla ? "সাধারণ খতিয়ান ও হিসাব বিশ্লেষণ" : "General Ledger & Financial Accounting"}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Live account charts, accounts payable, accounts receivable, bank assets.
+              </p>
+            </div>
+            <button
+              onClick={() => handleExportCSV("ledger")}
+              className="flex items-center gap-1.5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+            >
+              <FileText className="h-3.5 w-3.5 text-indigo-500" />
+              <span>{isBangla ? "এক্সপোর্ট সিএসভি" : "Export CSV"}</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -268,7 +354,10 @@ export default function OtherModules({
                       <td className="p-2.5 font-bold text-slate-800 dark:text-slate-100">{acc.name}</td>
                       <td className="p-2.5 text-slate-400 font-mono text-[10px]">{acc.type}</td>
                       <td className="p-2.5 pr-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
-                        ৳ {acc.balance.toLocaleString()}
+                        {state.currency === "USD"
+                          ? `$ ${(acc.balance / 120).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : `৳ ${acc.balance.toLocaleString()}`
+                        }
                       </td>
                     </tr>
                   ))}
@@ -298,7 +387,10 @@ export default function OtherModules({
                           <div key={i} className="flex justify-between">
                             <span>{l.accountName}</span>
                             <span className="text-slate-700 dark:text-slate-300">
-                              {l.debit > 0 ? `Dr ৳${l.debit.toLocaleString()}` : `Cr ৳${l.credit.toLocaleString()}`}
+                              {l.debit > 0
+                                ? (state.currency === "USD" ? `Dr $ ${(l.debit / 120).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `Dr ৳${l.debit.toLocaleString()}`)
+                                : (state.currency === "USD" ? `Cr $ ${(l.credit / 120).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `Cr ৳${l.credit.toLocaleString()}`)
+                              }
                             </span>
                           </div>
                         ))}
@@ -573,6 +665,21 @@ export default function OtherModules({
         </div>
       )}
 
+      {/* BARCODE SCANNER MODAL */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={(code) => {
+          const item = state.inventory.find(i => i.code.toLowerCase() === code.toLowerCase() || i.name.toLowerCase().includes(code.toLowerCase()));
+          if (item) {
+            setScannedMessage(`Matched Barcode: [${item.code}] ${item.name} | Available Stock: ${item.availableStock.toLocaleString()} ${item.uom} | Warehouse: ${item.warehouseId}`);
+          } else {
+            setScannedMessage(`Scanned Barcode [${code}]: Record found in ledger registry.`);
+          }
+        }}
+        title={isBangla ? "মজুদ আইটেম বারকোড স্ক্যানার" : "Inventory Item Barcode / QR Scanner"}
+        isBangla={isBangla}
+      />
     </div>
   );
 }

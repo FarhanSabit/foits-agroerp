@@ -33,7 +33,12 @@ interface ExecutiveDashboardProps {
   isBangla: boolean;
   role: string;
   darkMode?: boolean;
+  isLoading?: boolean;
 }
+
+const Skeleton = ({ className }: { className?: string }) => (
+  <div className={`animate-pulse bg-slate-200 dark:bg-slate-800 rounded-lg ${className}`} />
+);
 
 export default function ExecutiveDashboard({
   state,
@@ -41,9 +46,21 @@ export default function ExecutiveDashboard({
   onApprovePO,
   isBangla,
   role,
-  darkMode = false
+  darkMode = false,
+  isLoading = false
 }: ExecutiveDashboardProps) {
   const [roleMode, setRoleMode] = useState<"ceo" | "cfo" | "coo">("ceo");
+  const [selectedMonthTransactions, setSelectedMonthTransactions] = useState<{
+    month: string;
+    transactions: Array<{
+      date: string;
+      voucherNo: string;
+      description: string;
+      debitHead: string;
+      creditHead: string;
+      amount: number;
+    }>;
+  } | null>(null);
 
   // Dynamic colors based on theme
   const gridStroke = darkMode ? "#334155" : "#e2e8f0";
@@ -77,22 +94,150 @@ export default function ExecutiveDashboard({
     // Add minor deterministic variance for aesthetic wave
     const wave = 1 + Math.sin(index * 1.5) * 0.04;
     
+    const scale = state.currency === "USD" ? 120 : 1;
+    
     return {
       month,
-      cash: Math.round(cashBalance * factor * wave),
-      receivables: Math.round(receivables * factor * (wave - 0.02)),
-      payables: Math.round(payables * factor * (wave + 0.03)),
-      revenue: Math.round((totalSales / 6) * (0.8 + (index / 5) * 0.3) * wave), // Monthly revenue (sales spread out)
-      purchases: Math.round((purchases / 6) * (0.85 + (index / 5) * 0.2) * (wave - 0.01)), // Monthly purchases
-      rawMaterial: Math.round(rawMatVal * factor * wave),
-      finishedGoods: Math.round(finGoodsVal * factor * (wave + 0.01)),
-      inventory: Math.round(totalInventoryVal * factor * wave)
+      cash: Math.round((cashBalance * factor * wave) / scale),
+      receivables: Math.round((receivables * factor * (wave - 0.02)) / scale),
+      payables: Math.round((payables * factor * (wave + 0.03)) / scale),
+      revenue: Math.round((((totalSales / 6) * (0.8 + (index / 5) * 0.3) * wave)) / scale), // Monthly revenue (sales spread out)
+      purchases: Math.round((((purchases / 6) * (0.85 + (index / 5) * 0.2) * (wave - 0.01))) / scale), // Monthly purchases
+      rawMaterial: Math.round((rawMatVal * factor * wave) / scale),
+      finishedGoods: Math.round((finGoodsVal * factor * (wave + 0.01)) / scale),
+      inventory: Math.round((totalInventoryVal * factor * wave) / scale)
     };
   });
+
+  const handleChartClick = (chartData: any) => {
+    // Recharts passes different structures depending on where the click landed
+    const clickedMonth = chartData?.activeLabel || chartData?.month || (chartData?.activePayload && chartData.activePayload[0]?.payload?.month);
+    if (!clickedMonth) return;
+
+    // Generate simulated associated ledger transactions for that month!
+    const monthTxList: Record<string, Array<{ date: string; voucherNo: string; description: string; debitHead: string; creditHead: string; amount: number }>> = {
+      "Jan": [
+        { date: "2026-01-15", voucherNo: "JV-2026-0105", description: "Purchased raw materials from XYZ Grain", debitHead: "Raw Material Purchases", creditHead: "Accounts Payable", amount: 2400000 },
+        { date: "2026-01-20", voucherNo: "JV-2026-0112", description: "Received payment from Kazi Farms", debitHead: "Bank Asia General A/C", creditHead: "Accounts Receivable", amount: 1500000 }
+      ],
+      "Feb": [
+        { date: "2026-02-12", voucherNo: "JV-2026-0201", description: "Dispatched Premium Broiler Feed to Aftab Feed", debitHead: "Accounts Receivable", creditHead: "Poultry Feed Sales", amount: 3500000 },
+        { date: "2026-02-18", voucherNo: "JV-2026-0215", description: "Paid customs clearance dues for Brazilian Maize import", debitHead: "Raw Material Inventory", creditHead: "Bank Asia General A/C", amount: 450000 }
+      ],
+      "Mar": [
+        { date: "2026-03-10", voucherNo: "JV-2026-0311", description: "Utility bill and diesel fuel cost clearance", debitHead: "Retained Earnings", creditHead: "Bank Asia General A/C", amount: 310000 },
+        { date: "2026-03-24", voucherNo: "JV-2026-0348", description: "Soybean Meal intake from Dhaka Agri-Chemicals", debitHead: "Raw Material Purchases", creditHead: "Accounts Payable", amount: 4800000 }
+      ],
+      "Apr": [
+        { date: "2026-04-05", voucherNo: "JV-2026-0404", description: "Salary disbursement for manufacturing staff", debitHead: "Retained Earnings", creditHead: "Bank Asia General A/C", amount: 1200000 },
+        { date: "2026-04-20", voucherNo: "JV-2026-0419", description: "Feed export dispatch to CP Bangladesh Ltd", debitHead: "Accounts Receivable", creditHead: "Poultry Feed Sales", amount: 6200000 }
+      ],
+      "May": [
+        { date: "2026-05-02", voucherNo: "JV-2026-0511", description: "Purchased packaging woven bags from Bengal Pack", debitHead: "Raw Material Purchases", creditHead: "Accounts Payable", amount: 800000 },
+        { date: "2026-05-15", voucherNo: "JV-2026-0524", description: "Advance received from Bengal Feed Distributor", debitHead: "Bank Asia General A/C", creditHead: "Retained Earnings", amount: 1000000 }
+      ],
+      "Jun/Jul": [
+        { date: "2026-07-26", voucherNo: "JV-2026-0741", description: "Opening balances alignment", debitHead: "Bank Asia General A/C", creditHead: "Accounts Payable", amount: 18000000 },
+        { date: "2026-07-26", voucherNo: "JV-2026-0742", description: "Standard monthly depreciation posting", debitHead: "Retained Earnings", creditHead: "Retained Earnings", amount: 15000 }
+      ],
+      "জানুয়ারি": [
+        { date: "2026-01-15", voucherNo: "JV-2026-0105", description: "XYZ গ্রেইন থেকে কাঁচামাল কেনা", debitHead: "Raw Material Purchases", creditHead: "Accounts Payable", amount: 2400000 },
+        { date: "2026-01-20", voucherNo: "JV-2026-0112", description: "কাজী ফার্মস থেকে পেমেন্ট প্রাপ্তি", debitHead: "Bank Asia General A/C", creditHead: "Accounts Receivable", amount: 1500000 }
+      ],
+      "ফেব্রুয়ারি": [
+        { date: "2026-02-12", voucherNo: "JV-2026-0201", description: "আফতাব ফিডকে প্রিমিয়াম ব্রয়লার ফিড সরবরাহ", debitHead: "Accounts Receivable", creditHead: "Poultry Feed Sales", amount: 3500000 },
+        { date: "2026-02-18", voucherNo: "JV-2026-0215", description: "ব্রাজিলিয়ান ভুট্টা আমদানির শুল্ক পরিশোধ", debitHead: "Raw Material Inventory", creditHead: "Bank Asia General A/C", amount: 450000 }
+      ],
+      "মার্চ": [
+        { date: "2026-03-10", voucherNo: "JV-2026-0311", description: "ইউটিলিটি বিল এবং ডিজেল জ্বালানি খরচ", debitHead: "Retained Earnings", creditHead: "Bank Asia General A/C", amount: 310000 },
+        { date: "2026-03-24", voucherNo: "JV-2026-0348", description: "ঢাকা এগ্রি-কেমিক্যালস থেকে সয়াবিন খৈল কেনা", debitHead: "Raw Material Purchases", creditHead: "Accounts Payable", amount: 4800000 }
+      ],
+      "এপ্রিল": [
+        { date: "2026-04-05", voucherNo: "JV-2026-0404", description: "উৎপাদন কর্মীদের বেতন বিতরণ", debitHead: "Retained Earnings", creditHead: "Bank Asia General A/C", amount: 1200000 },
+        { date: "2026-04-20", voucherNo: "JV-2026-0419", description: "সিপি বাংলাদেশ লিমিটেডকে ফিড সরবরাহ", debitHead: "Accounts Receivable", creditHead: "Poultry Feed Sales", amount: 6200000 }
+      ],
+      "মে": [
+        { date: "2026-05-02", voucherNo: "JV-2026-0511", description: "বেঙ্গল প্যাক থেকে প্যাকেজিং ব্যাগ কেনা", debitHead: "Raw Material Purchases", creditHead: "Accounts Payable", amount: 800000 },
+        { date: "2026-05-15", voucherNo: "JV-2026-0524", description: "বেঙ্গল ফিড ডিস্ট্রিবিউটর থেকে অগ্রিম প্রাপ্তি", debitHead: "Bank Asia General A/C", creditHead: "Retained Earnings", amount: 1000000 }
+      ],
+      "জুন/জুলাই": [
+        { date: "2026-07-26", voucherNo: "JV-2026-0741", description: "উদ্বোধনী ব্যালেন্স সমন্বয়", debitHead: "Bank Asia General A/C", creditHead: "Accounts Payable", amount: 18000000 }
+      ]
+    };
+
+    const txs = monthTxList[clickedMonth] || [
+      { date: "2026-07-26", voucherNo: "JV-2026-0799", description: "Simulated automatic postings for " + clickedMonth, debitHead: "Bank Asia General A/C", creditHead: "Retained Earnings", amount: 2500000 }
+    ];
+
+    setSelectedMonthTransactions({
+      month: clickedMonth,
+      transactions: txs
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200/50 dark:border-white/10 pb-4">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-24" />
+          </div>
+        </div>
+
+        {/* Top KPI Metrics Skeletons */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="glass-card p-6 border border-slate-200/50 dark:border-white/5 space-y-4">
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-6 w-6 rounded-full" />
+              </div>
+              <Skeleton className="h-7 w-28" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+
+        {/* Chart & Activity Grid Skeletons */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 glass-card p-6 border border-slate-200/50 dark:border-white/5 space-y-4">
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-8 w-32" />
+            </div>
+            <Skeleton className="h-64 w-full" />
+          </div>
+          <div className="glass-card p-6 border border-slate-200/50 dark:border-white/5 space-y-4">
+            <Skeleton className="h-5 w-36" />
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex gap-3">
+                  <Skeleton className="h-8 w-8 rounded-full shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Custom tooltips for Recharts
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const isUSD = state.currency === "USD";
+      const symbol = isUSD ? "$" : "৳";
       return (
         <div className="bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-md text-white rounded-xl p-3 border border-white/10 font-mono text-xs shadow-xl space-y-1.5">
           <p className="font-bold text-slate-300">{label}</p>
@@ -102,7 +247,9 @@ export default function ExecutiveDashboard({
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.stroke || p.fill }}></span>
                 <span className="text-slate-400">{p.name}:</span>
               </span>
-              <span className="font-bold text-white">৳ {p.value.toLocaleString()}</span>
+              <span className="font-bold text-white">
+                {symbol} {p.value.toLocaleString(undefined, { minimumFractionDigits: isUSD ? 2 : 0, maximumFractionDigits: isUSD ? 2 : 0 })}
+              </span>
             </div>
           ))}
         </div>
@@ -114,10 +261,10 @@ export default function ExecutiveDashboard({
   // CEO Board Chart: Revenue vs Cost
   const renderCEOChart = () => (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+      <BarChart onClick={handleChartClick} data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }} className="cursor-pointer">
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
-        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 100000).toFixed(0)}L`} />
+        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => state.currency === "USD" ? `$ ${(val / 1000).toFixed(0)} K` : `৳ ${(val / 100000).toFixed(0)} L`} />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Bar name={isBangla ? "রাজস্ব (বিক্রয়)" : "Revenue (Sales)"} dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -129,7 +276,7 @@ export default function ExecutiveDashboard({
   // CFO Board Chart: Cash Position & Liquidity
   const renderCFOChart = () => (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+      <AreaChart onClick={handleChartClick} data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }} className="cursor-pointer">
         <defs>
           <linearGradient id="colorCash" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2}/>
@@ -142,7 +289,7 @@ export default function ExecutiveDashboard({
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
-        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 10000000).toFixed(1)}Cr`} />
+        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => state.currency === "USD" ? `$ ${(val / 1000000).toFixed(2)} M` : `৳ ${(val / 10000000).toFixed(1)} Cr`} />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Area type="monotone" name={isBangla ? "ক্যাশ ব্যাংক ব্যালেন্স" : "Cash in Bank"} dataKey="cash" stroke="#4f46e5" strokeWidth={2} fillOpacity={1} fill="url(#colorCash)" />
@@ -155,7 +302,7 @@ export default function ExecutiveDashboard({
   // COO Board Chart: Inventory Valuation
   const renderCOOChart = () => (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+      <AreaChart onClick={handleChartClick} data={trendData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }} className="cursor-pointer">
         <defs>
           <linearGradient id="colorRaw" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
@@ -168,7 +315,7 @@ export default function ExecutiveDashboard({
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="month" stroke={axisStroke} fontSize={11} tickLine={false} />
-        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => `৳${(val / 100000).toFixed(0)}L`} />
+        <YAxis stroke={axisStroke} fontSize={11} tickLine={false} tickFormatter={(val) => state.currency === "USD" ? `$ ${(val / 1000).toFixed(0)} K` : `৳ ${(val / 100000).toFixed(0)} L`} />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
         <Area type="monotone" name={isBangla ? "কাঁচামাল মজুদ মূল্য" : "Raw Materials Valuation"} dataKey="rawMaterial" stroke="#8b5cf6" strokeWidth={2} fillOpacity={1} fill="url(#colorRaw)" />
@@ -222,7 +369,10 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              ৳ {(totalSales / 10000000).toFixed(2)} Cr
+              {state.currency === "USD"
+                ? `$ ${((totalSales / 120) / 1000000).toFixed(2)} M`
+                : `৳ ${(totalSales / 10000000).toFixed(2)} Cr`
+              }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-emerald-600 font-mono">
               <span>+12.4%</span>
@@ -260,7 +410,10 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              ৳ {((rawMatVal + finGoodsVal) / 100000).toFixed(1)} Lk
+              {state.currency === "USD"
+                ? `$ ${(((rawMatVal + finGoodsVal) / 120) / 1000).toFixed(1)} K`
+                : `৳ ${((rawMatVal + finGoodsVal) / 100000).toFixed(1)} Lk`
+              }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-purple-600 font-mono">
               <span>{isBangla ? "ভুট্টা:" : "Maize:"} {(state.inventory.find(i => i.code === "RM001")?.availableStock || 0).toLocaleString()} KG</span>
@@ -278,7 +431,10 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              ৳ {(cashBalance / 10000000).toFixed(2)} Cr
+              {state.currency === "USD"
+                ? `$ ${((cashBalance / 120) / 1000000).toFixed(2)} M`
+                : `৳ ${(cashBalance / 10000000).toFixed(2)} Cr`
+              }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-600 font-mono">
               <span>Bank Asia Ltd</span>
@@ -296,7 +452,10 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              ৳ {(receivables / 10000000).toFixed(2)} Cr
+              {state.currency === "USD"
+                ? `$ ${((receivables / 120) / 1000000).toFixed(2)} M`
+                : `৳ ${(receivables / 10000000).toFixed(2)} Cr`
+              }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-cyan-600 font-mono">
               <span>{isBangla ? "বকেয়া চক্র: ২৯ দিন" : "Aging: Avg 29 Days"}</span>
@@ -314,7 +473,10 @@ export default function ExecutiveDashboard({
           </div>
           <div className="mt-2">
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">
-              ৳ {(payables / 10000000).toFixed(2)} Cr
+              {state.currency === "USD"
+                ? `$ ${((payables / 120) / 1000000).toFixed(2)} M`
+                : `৳ ${(payables / 10000000).toFixed(2)} Cr`
+              }
             </span>
             <div className="flex items-center gap-1 mt-1 text-[10px] text-rose-500 font-mono">
               <span>{isBangla ? "৪টি বিল বকেয়া" : "4 Pending Invoices"}</span>
@@ -664,6 +826,68 @@ export default function ExecutiveDashboard({
         </div>
 
       </div>
+
+      {selectedMonthTransactions && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-white/10 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center border-b border-slate-200/50 dark:border-white/10 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Activity className="h-4.5 w-4.5 text-indigo-500 animate-pulse" />
+                  <span>
+                    {isBangla 
+                      ? `${selectedMonthTransactions.month}-এর লেজার লেনদেন বিশ্লেষণ` 
+                      : `Ledger Drill-down for ${selectedMonthTransactions.month}`}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {isBangla 
+                    ? "নির্বাচিত মাস ও সংশ্লিষ্ট খতিয়ান অ্যাকাউন্ট সমূহের বিস্তারিত তথ্য।" 
+                    : "Granular audit log of journal vouchers posted during this monthly cycle."}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedMonthTransactions(null)}
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 px-3 py-1 rounded-lg border border-slate-200/50 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                {isBangla ? "বন্ধ করুন" : "Close (Esc)"}
+              </button>
+            </div>
+
+            <div className="overflow-x-auto max-h-96">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono text-[10px]">
+                  <tr>
+                    <th className="p-2.5 pl-4">{isBangla ? "তারিখ" : "Date"}</th>
+                    <th className="p-2.5">{isBangla ? "ভাউচার নং" : "Voucher No"}</th>
+                    <th className="p-2.5">{isBangla ? "বিবরণ" : "Description"}</th>
+                    <th className="p-2.5">{isBangla ? "ডেবিট খাত" : "Debit Head"}</th>
+                    <th className="p-2.5">{isBangla ? "ক্রেডিট খাত" : "Credit Head"}</th>
+                    <th className="p-2.5 pr-4 text-right">{isBangla ? "পরিমাণ" : "Amount"}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5 font-mono text-[11px]">
+                  {selectedMonthTransactions.transactions.map((tx, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="p-2.5 pl-4 text-slate-500 whitespace-nowrap">{tx.date}</td>
+                      <td className="p-2.5 text-indigo-600 dark:text-indigo-400 font-bold whitespace-nowrap">{tx.voucherNo}</td>
+                      <td className="p-2.5 text-slate-700 dark:text-slate-300 font-sans max-w-xs truncate" title={tx.description}>{tx.description}</td>
+                      <td className="p-2.5 font-sans font-medium text-slate-600 dark:text-slate-300">{tx.debitHead}</td>
+                      <td className="p-2.5 font-sans font-medium text-slate-600 dark:text-slate-300">{tx.creditHead}</td>
+                      <td className="p-2.5 pr-4 text-right font-bold text-slate-800 dark:text-slate-100">
+                        {state.currency === "USD" 
+                          ? `$ ${(tx.amount / 120).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                          : `৳ ${tx.amount.toLocaleString()}`
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

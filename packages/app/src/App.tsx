@@ -80,7 +80,8 @@ export default function App() {
     notifications: initialNotifications,
     forecastQty: 1000,
     selectedProductId: "FG001",
-    currentDemoStep: 0
+    currentDemoStep: 0,
+    currency: "BDT"
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -740,6 +741,22 @@ export default function App() {
     if (currentTab !== "dashboard") setCurrentTab("dashboard");
   };
 
+  const handleImportCompleted = (type: "inventory" | "ledger", importedItems: any[]) => {
+    setState((prev) => {
+      if (type === "inventory") {
+        return {
+          ...prev,
+          inventory: [...importedItems, ...prev.inventory]
+        };
+      } else {
+        return {
+          ...prev,
+          ledger: [...importedItems, ...prev.ledger]
+        };
+      }
+    });
+  };
+
   // Connect Step execution triggers inside Golden Flow timelines
   const handleExecuteGoldenStep = (stepIdx: number) => {
     switch (stepIdx) {
@@ -832,7 +849,63 @@ export default function App() {
     } else if (action === "issue_wo") {
       handleLaunchWO("FG001", 1000);
     } else if (action === "create_so") {
-      alert("New Sales order SO-2026-0152 registered for Kazi Farms.");
+      setState((prev) => {
+        const newSO = {
+          id: `so-${Date.now()}`,
+          orderNumber: `SO-2026-${Math.floor(Math.random() * 900) + 100}`,
+          customerName: "Kazi Farms Group",
+          customerCode: "CUST001",
+          orderDate: new Date().toISOString().split('T')[0],
+          items: [{ productCode: "FG001", productName: "Poultry Feed (Premium)", qty: 500, uom: "Bags", unitPrice: 2200, totalPrice: 1100000 }],
+          totalAmount: 1100000,
+          status: DocStatus.PENDING,
+          deliveryStatus: "Pending" as const
+        };
+        return {
+          ...prev,
+          salesOrders: [newSO, ...prev.salesOrders],
+          notifications: [
+            { id: `notif-${Date.now()}`, title: "New Sales Order Registered", message: `SO for Kazi Farms of ৳1,100,000 has been created.`, time: "Just Now", category: "System" as const, read: false },
+            ...prev.notifications
+          ]
+        };
+      });
+    } else if (action === "approve_all_cfo") {
+      setState((prev) => {
+        const approvedReqs = prev.requisitions.map((r) => ({ ...r, status: DocStatus.APPROVED }));
+        const approvedPOs = prev.purchaseOrders.map((p) => ({ ...p, approvalStatus: DocStatus.APPROVED }));
+        return {
+          ...prev,
+          requisitions: approvedReqs,
+          purchaseOrders: approvedPOs,
+          notifications: [
+            { id: `notif-${Date.now()}`, title: "All Requisitions & POs Approved", message: "CFO bulk approval successfully applied across SCM pipeline.", time: "Just Now", category: "Approval" as const, read: false },
+            ...prev.notifications
+          ]
+        };
+      });
+    } else if (action === "financial_report_cfo") {
+      setCurrentTab("finance");
+      setState((prev) => ({
+        ...prev,
+        notifications: [
+          { id: `notif-${Date.now()}`, title: "Financial Dashboard Loaded", message: "Analytical models and ledger account valuations are ready.", time: "Just Now", category: "Finance" as const, read: false },
+          ...prev.notifications
+        ]
+      }));
+    } else if (action === "log_stock_intake") {
+      setCurrentTab("procurement");
+      handlePostGRN("PO-2026-0043", [
+        { itemCode: "RM001", itemName: "Maize (Yellow Grade A)", qty: 10000, uom: "KG" }
+      ]);
+    } else if (action === "physical_audit_warehouse") {
+      setState((prev) => ({
+        ...prev,
+        notifications: [
+          { id: `notif-${Date.now()}`, title: "Physical Audit Triggered", message: "Discrepancy logs dispatched to SCM Manager for signature.", time: "Just Now", category: "System" as const, read: false },
+          ...prev.notifications
+        ]
+      }));
     }
   };
 
@@ -936,6 +1009,8 @@ export default function App() {
             onResetDB={handleResetDB}
             role={userRole}
             onChangeRole={setUserRole}
+            currency={state.currency || "BDT"}
+            onToggleCurrency={(curr) => setState((prev) => ({ ...prev, currency: curr }))}
           />
 
           {/* Golden Flow Timeline Bar */}
@@ -970,6 +1045,7 @@ export default function App() {
                   onPostGRN={handlePostGRN}
                   onLinkInvoiceToGRN={handleLinkInvoiceToGRN}
                   isBangla={isBangla}
+                  isLoading={isLoading}
                 />
               )}
 
@@ -1000,6 +1076,7 @@ export default function App() {
                   onDispatchSalesOrder={handleDispatchSalesOrder}
                   onPostCollection={handlePostCollection}
                   isBangla={isBangla}
+                  onImportCompleted={handleImportCompleted}
                 />
               )}
 
