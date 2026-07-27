@@ -19,7 +19,8 @@ import {
   WifiOff,
   Smartphone
 } from "lucide-react";
-import { Notification, DocStatus } from "../types";
+import { Notification, DocStatus, UserAccount } from "../types";
+import { ShieldCheck, Lock, UserCheck } from "lucide-react";
 
 interface HeaderProps {
   notifications: Notification[];
@@ -37,6 +38,10 @@ interface HeaderProps {
   currency: "BDT" | "USD";
   onToggleCurrency: (currency: "BDT" | "USD") => void;
   onAutoGeneratePreventivePR?: (itemCode: string, qty: number) => void;
+  currentUser?: UserAccount | null;
+  onOpenAuthModal?: () => void;
+  onOpenRoleManagerModal?: () => void;
+  onSignOut?: () => void;
 }
 
 export default function Header({
@@ -54,7 +59,11 @@ export default function Header({
   onChangeRole,
   currency,
   onToggleCurrency,
-  onAutoGeneratePreventivePR
+  onAutoGeneratePreventivePR,
+  currentUser,
+  onOpenAuthModal,
+  onOpenRoleManagerModal,
+  onSignOut
 }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -517,55 +526,76 @@ export default function Header({
             title="User Settings"
           >
             <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm tracking-wide shrink-0">
-              {role === "CFO" ? "AR" : role === "SCM Manager" ? "MR" : "SI"}
+              {currentUser?.avatar || (role === "CFO" ? "AR" : role === "SCM Manager" ? "MR" : "SI")}
             </div>
             <div className="hidden md:flex flex-col">
               <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-none">
-                {role === "CFO" 
-                  ? "Dr. Ahsan Rahman" 
-                  : role === "SCM Manager" 
-                  ? "M. Rahman" 
-                  : "S. Islam"}
+                {currentUser?.name ||
+                  (role === "CFO" ? "Dr. Ahsan Rahman" : role === "SCM Manager" ? "M. Rahman" : "S. Islam")}
               </span>
               <span className="text-[10px] font-mono text-slate-400 mt-0.5 leading-none">
-                {role === "CFO" 
-                  ? (isBangla ? "সিএফও (এডমিন)" : "CFO (Admin)") 
-                  : role === "SCM Manager" 
-                  ? (isBangla ? "এসসিএম ব্যবস্থাপক" : "SCM Manager") 
-                  : (isBangla ? "গুদাম প্রশাসক" : "Warehouse Admin")}
+                {currentUser?.role || role}
               </span>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 mt-2 w-56 glass-card z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 duration-150 text-sm">
-              <div className="px-4 py-3 border-b border-slate-200/50 dark:border-white/10">
-                <p className="text-xs text-slate-400 font-mono tracking-wider uppercase font-bold">
-                  {isBangla ? "সংযুক্ত বিভাগ" : "Assigned Module"}
+            <div className="absolute right-0 mt-2 w-64 glass-card z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2 duration-150 text-sm">
+              <div className="px-4 py-3 border-b border-slate-200/50 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02]">
+                <p className="text-[10px] text-slate-400 font-mono tracking-wider uppercase font-bold">
+                  {isBangla ? "সক্রিয় ব্যবহারকারী" : "Authenticated Identity"}
                 </p>
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mt-1">
-                  Dhaka Head Office (HQ)
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate mt-0.5">
+                  {currentUser?.name || "Dr. Ahsan Rahman"}
                 </p>
+                <p className="text-[10px] font-mono text-slate-400 truncate">
+                  {currentUser?.email || "cfo@agroerp.com"}
+                </p>
+                <span className="inline-block mt-1 text-[9px] font-mono bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 px-1.5 py-0.5 rounded font-bold">
+                  {currentUser?.department || "Executive Management"}
+                </span>
               </div>
+
               <button
-                onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                onClick={() => {
+                  setProfileOpen(false);
+                  if (onOpenAuthModal) onOpenAuthModal();
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors flex items-center justify-between cursor-pointer text-xs"
               >
-                {isBangla ? "ব্যবহারকারী প্রোফাইল" : "Profile Settings"}
+                <span>{isBangla ? "লগইন / ভূমিকা পরিবর্তন" : "Switch Account / Auth Portal"}</span>
+                <UserCheck className="h-3.5 w-3.5 text-indigo-500" />
               </button>
+
+              {(role === "CFO" || currentUser?.permissions?.includes("manage_users_rbac")) && (
+                <button
+                  onClick={() => {
+                    setProfileOpen(false);
+                    if (onOpenRoleManagerModal) onOpenRoleManagerModal();
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors flex items-center justify-between cursor-pointer text-xs border-t border-slate-100 dark:border-slate-800"
+                >
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                    {isBangla ? "আরবিএসি পারমিশন অ্যাডমিন" : "RBAC & User Permissions"}
+                  </span>
+                  <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                </button>
+              )}
+
               <button
-                onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
-              >
-                {isBangla ? "সিকিউরিটি ও লগস" : "Security & Logs"}
-              </button>
-              <button
-                onClick={() => setProfileOpen(false)}
-                className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-colors border-t border-slate-100 dark:border-slate-700 flex items-center gap-2 cursor-pointer"
+                onClick={() => {
+                  setProfileOpen(false);
+                  if (onSignOut) {
+                    onSignOut();
+                  } else if (onOpenAuthModal) {
+                    onOpenAuthModal();
+                  }
+                }}
+                className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-colors border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 cursor-pointer text-xs"
               >
                 <LogOut className="h-4 w-4" />
-                <span>{isBangla ? "লগ আউট" : "Sign Out"}</span>
+                <span>{isBangla ? "লগ আউট করুন" : "Sign Out"}</span>
               </button>
             </div>
           )}

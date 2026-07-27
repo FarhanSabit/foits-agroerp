@@ -553,6 +553,104 @@ export const initialActivities: ActivityLog[] = [
   { timestamp: "2026-07-26 16:00", user: "Tareq Anis", action: "Dispatched Delivery", details: "DM-TA-14-3021 departed central depot for Gazipur destination" }
 ];
 
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  role: string;
+  department: string;
+  avatar: string;
+  permissions: string[];
+  status: "Active" | "Suspended";
+  createdAt: string;
+  lastLogin: string;
+}
+
+export const ALL_PERMISSIONS: { key: string; labelEn: string; labelBn: string; category: string }[] = [
+  { key: "view_dashboard", labelEn: "View Executive Dashboard", labelBn: "নির্বাহী ড্যাশবোর্ড দর্শন", category: "Core" },
+  { key: "manage_procurement", labelEn: "Manage Procurement & SCM", labelBn: "ক্রয় ও সরবরাহ ব্যবস্থাপনা", category: "Supply Chain" },
+  { key: "approve_po", labelEn: "Approve PR / PO / Orders", labelBn: "ক্রয় রিকুইজিশন ও অর্ডার অনুমোদন", category: "Approvals" },
+  { key: "manage_inventory", labelEn: "Manage Inventory & Stock", labelBn: "ইনভেন্টরি ও মজুদ নিয়ন্ত্রণ", category: "Supply Chain" },
+  { key: "manage_production", labelEn: "Manage Production & MRP", labelBn: "উৎপাদন ও এমআরপি নিয়ন্ত্রণ", category: "Operations" },
+  { key: "manage_commercial", labelEn: "Manage Commercial & LC", labelBn: "বাণিজ্যিক এলসি ও ইমপোর্ট", category: "Commercial" },
+  { key: "manage_sales", labelEn: "Manage Sales & Distribution", labelBn: "বিক্রি ও পরিবেশক ব্যবস্থাপনা", category: "Commercial" },
+  { key: "manage_finance", labelEn: "Manage Finance & Ledger", labelBn: "অর্থ, খতিয়ান ও হিসাব", category: "Finance" },
+  { key: "manage_hr", labelEn: "Manage HR & Payroll", labelBn: "এইচআর ও পে-রোল প্রশাসন", category: "HR" },
+  { key: "manage_logistics", labelEn: "Manage Logistics & Fleet", labelBn: "পরিবহন ও বহর পরিচালনা", category: "Operations" },
+  { key: "manage_crm", labelEn: "Manage CRM & Customers", labelBn: "কাস্টমার সম্পর্ক ও সিআরএম", category: "Commercial" },
+  { key: "manage_support", labelEn: "Manage Support Tickets", labelBn: "সহায়তা সার্ভিস ও টিকিট", category: "Support" },
+  { key: "manage_users_rbac", labelEn: "Manage Users & RBAC Permissions", labelBn: "ব্যবহারকারী ও আরবিএসি পারমিশন", category: "Admin" }
+];
+
+export const initialUsers: UserAccount[] = [
+  {
+    id: "u1",
+    name: "Dr. Ahsan Rahman",
+    email: "cfo@agroerp.com",
+    password: "admin123",
+    role: "CFO",
+    department: "Executive Management",
+    avatar: "AR",
+    permissions: ALL_PERMISSIONS.map(p => p.key),
+    status: "Active",
+    createdAt: "2025-01-10",
+    lastLogin: "2026-07-27 08:30 AM"
+  },
+  {
+    id: "u2",
+    name: "M. Rahman",
+    email: "scm@agroerp.com",
+    password: "scm123",
+    role: "SCM Manager",
+    department: "Supply Chain Management",
+    avatar: "MR",
+    permissions: ["view_dashboard", "manage_procurement", "approve_po", "manage_inventory", "manage_production", "manage_logistics", "manage_support"],
+    status: "Active",
+    createdAt: "2025-02-14",
+    lastLogin: "2026-07-26 05:15 PM"
+  },
+  {
+    id: "u3",
+    name: "S. Islam",
+    email: "warehouse@agroerp.com",
+    password: "store123",
+    role: "Warehouse Admin",
+    department: "Depot & Warehousing",
+    avatar: "SI",
+    permissions: ["view_dashboard", "manage_inventory", "manage_production", "manage_logistics", "manage_support"],
+    status: "Active",
+    createdAt: "2025-03-01",
+    lastLogin: "2026-07-27 07:45 AM"
+  },
+  {
+    id: "u4",
+    name: "F. Ahmed",
+    email: "sales@agroerp.com",
+    password: "sales123",
+    role: "Sales Officer",
+    department: "Sales & Marketing",
+    avatar: "FA",
+    permissions: ["view_dashboard", "manage_sales", "manage_crm", "manage_support"],
+    status: "Active",
+    createdAt: "2025-04-12",
+    lastLogin: "2026-07-25 02:20 PM"
+  },
+  {
+    id: "u5",
+    name: "T. Hossain",
+    email: "finance@agroerp.com",
+    password: "finance123",
+    role: "Finance Officer",
+    department: "Accounts & Commercial",
+    avatar: "TH",
+    permissions: ["view_dashboard", "manage_finance", "manage_commercial", "approve_po", "manage_support"],
+    status: "Active",
+    createdAt: "2025-05-18",
+    lastLogin: "2026-07-26 11:00 AM"
+  }
+];
+
 export const initialNotifications: Notification[] = [
   {
     id: "n1",

@@ -42,6 +42,10 @@ import ProductionModule from "./components/ProductionModule";
 import OtherModules from "./components/OtherModules";
 import AIAssistant from "./components/AIAssistant";
 import OperationalExcellence from "./components/OperationalExcellence";
+import AuthModal from "./components/AuthModal";
+import RoleManagerModal from "./components/RoleManagerModal";
+import AccessDeniedView from "./components/AccessDeniedView";
+import { initialUsers, UserAccount } from "./types";
 
 import {
   Search,
@@ -109,7 +113,32 @@ export default function App() {
   const [dbError, setDbError] = useState<string | null>(null);
 
   const [currentTab, setCurrentTab] = useState("dashboard");
-  const [userRole, setUserRole] = useState<string>("CFO");
+  
+  // RBAC & Authentication State
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem("agro_erp_users");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to parse saved users:", e);
+    }
+    return initialUsers;
+  });
+
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem("agro_erp_current_user");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error("Failed to parse saved current user:", e);
+    }
+    return initialUsers[0]; // Default to Dr. Ahsan Rahman (CFO / Admin)
+  });
+
+  const [userRole, setUserRole] = useState<string>(() => currentUser?.role || "CFO");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [roleManagerOpen, setRoleManagerOpen] = useState(false);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isBangla, setIsBangla] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -117,18 +146,82 @@ export default function App() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
 
-  // Redirect forbidden tabs when role changes
+  // Sync users to localStorage
   useEffect(() => {
-    if (userRole === "SCM Manager") {
-      if (["finance", "hr", "crm"].includes(currentTab)) {
-        setCurrentTab("dashboard");
+    try {
+      localStorage.setItem("agro_erp_users", JSON.stringify(users));
+    } catch (e) {
+      console.error("Failed to save users:", e);
+    }
+  }, [users]);
+
+  // Sync currentUser to localStorage & keep userRole updated
+  useEffect(() => {
+    if (currentUser) {
+      try {
+        localStorage.setItem("agro_erp_current_user", JSON.stringify(currentUser));
+      } catch (e) {
+        console.error("Failed to save current user:", e);
       }
-    } else if (userRole === "Warehouse Admin") {
-      if (["finance", "hr", "crm", "commercial", "procurement", "sales"].includes(currentTab)) {
-        setCurrentTab("dashboard");
+      setUserRole(currentUser.role);
+    } else {
+      localStorage.removeItem("agro_erp_current_user");
+    }
+  }, [currentUser]);
+
+  const handleLoginSuccess = (user: UserAccount) => {
+    setCurrentUser(user);
+    setUserRole(user.role);
+    setAuthModalOpen(false);
+  };
+
+  const handleRegisterSuccess = (newUser: UserAccount) => {
+    setUsers((prev) => [...prev, newUser]);
+    setCurrentUser(newUser);
+    setUserRole(newUser.role);
+    setAuthModalOpen(false);
+  };
+
+  const handleSignOut = () => {
+    setCurrentUser(null);
+    setAuthModalOpen(true);
+  };
+
+  const handleUpdateUsers = (updatedUsers: UserAccount[]) => {
+    setUsers(updatedUsers);
+    if (currentUser) {
+      const match = updatedUsers.find((u) => u.id === currentUser.id);
+      if (match) {
+        setCurrentUser(match);
+        setUserRole(match.role);
       }
     }
-  }, [userRole, currentTab]);
+  };
+
+  // RBAC Permission Check per Module Tab
+  const hasTabPermission = (tabId: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === "CFO") return true;
+
+    const tabPermMap: Record<string, string> = {
+      dashboard: "view_dashboard",
+      procurement: "manage_procurement",
+      inventory: "manage_inventory",
+      production: "manage_production",
+      commercial: "manage_commercial",
+      sales: "manage_sales",
+      finance: "manage_finance",
+      hr: "manage_hr",
+      logistics: "manage_logistics",
+      crm: "manage_crm",
+      support: "manage_support",
+      operational_excellence: "view_dashboard"
+    };
+
+    const requiredPerm = tabPermMap[tabId];
+    if (!requiredPerm) return true;
+    return currentUser.permissions.includes(requiredPerm);
+  };
 
   // 1. Fetch initial state from Neon DB via Express API
   useEffect(() => {
@@ -1075,6 +1168,7 @@ export default function App() {
             setCollapsed={setSidebarCollapsed}
             isBangla={isBangla}
             role={userRole}
+            permissions={currentUser?.permissions}
           />
         </div>
 
@@ -1094,10 +1188,20 @@ export default function App() {
             dbConnected={dbConnected}
             onResetDB={handleResetDB}
             role={userRole}
-            onChangeRole={setUserRole}
+            onChangeRole={(newRole) => {
+              setUserRole(newRole);
+              if (currentUser) {
+                const match = users.find((u) => u.role === newRole);
+                if (match) setCurrentUser(match);
+              }
+            }}
             currency={state.currency || "BDT"}
             onToggleCurrency={(curr) => setState((prev) => ({ ...prev, currency: curr }))}
             onAutoGeneratePreventivePR={handleAutoGeneratePreventivePR}
+            currentUser={currentUser}
+            onOpenAuthModal={() => setAuthModalOpen(true)}
+            onOpenRoleManagerModal={() => setRoleManagerOpen(true)}
+            onSignOut={handleSignOut}
           />
 
           {/* Golden Flow Timeline Bar */}
@@ -1112,63 +1216,76 @@ export default function App() {
           <main className="flex-1 p-6 overflow-y-auto scrollbar-thin">
             <div className="max-w-7xl mx-auto animate-in fade-in duration-200">
               
-              {currentTab === "dashboard" && (
-                <ExecutiveDashboard
-                  state={state}
-                  onApprovePR={handleApprovePR}
-                  onApprovePO={handleApprovePO}
+              {!hasTabPermission(currentTab) ? (
+                <AccessDeniedView
+                  requiredPermission={`manage_${currentTab}`}
+                  tabTitle={currentTab.toUpperCase()}
+                  currentUser={currentUser}
+                  onOpenAuthModal={() => setAuthModalOpen(true)}
+                  onGoToDashboard={() => setCurrentTab("dashboard")}
                   isBangla={isBangla}
-                  role={userRole}
-                  darkMode={darkMode}
-                  onNavigateTab={(tab) => setCurrentTab(tab)}
                 />
-              )}
+              ) : (
+                <>
+                  {currentTab === "dashboard" && (
+                    <ExecutiveDashboard
+                      state={state}
+                      onApprovePR={handleApprovePR}
+                      onApprovePO={handleApprovePO}
+                      isBangla={isBangla}
+                      role={userRole}
+                      darkMode={darkMode}
+                      onNavigateTab={(tab) => setCurrentTab(tab)}
+                    />
+                  )}
 
-              {currentTab === "procurement" && (
-                <ProcurementModule
-                  state={state}
-                  onRaisePR={handleRaisePR}
-                  onRaiseRFQ={handleRaiseRFQ}
-                  onAwardSupplier={handleAwardSupplier}
-                  onPostGRN={handlePostGRN}
-                  onApprovePR={handleApprovePR}
-                  onApprovePO={handleApprovePO}
-                  onLinkInvoiceToGRN={handleLinkInvoiceToGRN}
-                  onRevertVersion={handleRevertVersion}
-                  isBangla={isBangla}
-                  isLoading={isLoading}
-                />
-              )}
+                  {currentTab === "procurement" && (
+                    <ProcurementModule
+                      state={state}
+                      onRaisePR={handleRaisePR}
+                      onRaiseRFQ={handleRaiseRFQ}
+                      onAwardSupplier={handleAwardSupplier}
+                      onPostGRN={handlePostGRN}
+                      onApprovePR={handleApprovePR}
+                      onApprovePO={handleApprovePO}
+                      onLinkInvoiceToGRN={handleLinkInvoiceToGRN}
+                      onRevertVersion={handleRevertVersion}
+                      isBangla={isBangla}
+                      isLoading={isLoading}
+                    />
+                  )}
 
-              {currentTab === "production" && (
-                <ProductionModule
-                  state={state}
-                  onSetForecast={handleSetForecast}
-                  onRunMRP={handleRunMRP}
-                  onRaisePR={handleRaisePR}
-                  onLaunchWO={handleLaunchWO}
-                  isBangla={isBangla}
-                />
-              )}
+                  {currentTab === "production" && (
+                    <ProductionModule
+                      state={state}
+                      onSetForecast={handleSetForecast}
+                      onRunMRP={handleRunMRP}
+                      onRaisePR={handleRaisePR}
+                      onLaunchWO={handleLaunchWO}
+                      isBangla={isBangla}
+                    />
+                  )}
 
-              {currentTab === "operational_excellence" && (
-                <OperationalExcellence
-                  state={state}
-                  isBangla={isBangla}
-                  darkMode={darkMode}
-                />
-              )}
+                  {currentTab === "operational_excellence" && (
+                    <OperationalExcellence
+                      state={state}
+                      isBangla={isBangla}
+                      darkMode={darkMode}
+                    />
+                  )}
 
-              {/* Other modules handles (Inventory, Finance, Sales, etc.) */}
-              {["inventory", "commercial", "sales", "finance", "hr", "logistics", "crm", "support"].includes(currentTab) && (
-                <OtherModules
-                  tab={currentTab}
-                  state={state}
-                  onDispatchSalesOrder={handleDispatchSalesOrder}
-                  onPostCollection={handlePostCollection}
-                  isBangla={isBangla}
-                  onImportCompleted={handleImportCompleted}
-                />
+                  {/* Other modules handles (Inventory, Finance, Sales, etc.) */}
+                  {["inventory", "commercial", "sales", "finance", "hr", "logistics", "crm", "support"].includes(currentTab) && (
+                    <OtherModules
+                      tab={currentTab}
+                      state={state}
+                      onDispatchSalesOrder={handleDispatchSalesOrder}
+                      onPostCollection={handlePostCollection}
+                      isBangla={isBangla}
+                      onImportCompleted={handleImportCompleted}
+                    />
+                  )}
+                </>
               )}
 
             </div>
@@ -1260,6 +1377,26 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Auth Modal (Login / Register / Switch Account) */}
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          users={users}
+          onLoginSuccess={handleLoginSuccess}
+          onRegisterSuccess={handleRegisterSuccess}
+          isBangla={isBangla}
+        />
+
+        {/* RBAC Role & Permission Admin Console */}
+        <RoleManagerModal
+          isOpen={roleManagerOpen}
+          onClose={() => setRoleManagerOpen(false)}
+          users={users}
+          currentUser={currentUser}
+          onUpdateUsers={handleUpdateUsers}
+          isBangla={isBangla}
+        />
 
       </div>
     </div>

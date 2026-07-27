@@ -24,6 +24,7 @@ interface SidebarProps {
   setCollapsed: (collapsed: boolean) => void;
   isBangla: boolean;
   role: string;
+  permissions?: string[];
 }
 
 export default function Sidebar({
@@ -32,34 +33,43 @@ export default function Sidebar({
   collapsed,
   setCollapsed,
   isBangla,
-  role
+  role,
+  permissions
 }: SidebarProps) {
   const menuItems = [
-    { id: "dashboard", labelEn: "Executive Dashboard", labelBn: "নির্বাহী ড্যাশবোর্ড", icon: BarChart3 },
-    { id: "procurement", labelEn: "Procurement (SCM)", labelBn: "ক্রয় ও সরবরাহ", icon: ShoppingCart },
-    { id: "inventory", labelEn: "Inventory (Stock)", labelBn: "ইনভেন্টরি ও মজুদ", icon: Package },
-    { id: "production", labelEn: "Production & MRP", labelBn: "উৎপাদন ও এমআরপি", icon: Factory },
-    { id: "commercial", labelEn: "Commercial & LC", labelBn: "বাণিজ্যিক ও এলসি", icon: Globe },
-    { id: "sales", labelEn: "Sales & Distribution", labelBn: "বিক্রয় ও বিতরণ", icon: ShoppingBag },
-    { id: "finance", labelEn: "Finance & Ledger", labelBn: "অর্থ ও খতিয়ান", icon: Landmark },
-    { id: "hr", labelEn: "HR & Payroll", labelBn: "এইচআর ও পে-রোল", icon: UserRound },
-    { id: "logistics", labelEn: "Logistics & Fleet", labelBn: "পরিবহন ও বহর", icon: Truck },
-    { id: "crm", labelEn: "CRM & Customers", labelBn: "সিআরএম ও কাস্টমার", icon: MessageCircle },
-    { id: "support", labelEn: "Support & Tickets", labelBn: "সহায়তা ও টিকিট", icon: HelpCircle },
-    { id: "operational_excellence", labelEn: "Operational Excellence", labelBn: "কার্যকরী উৎকর্ষ", icon: Sparkles }
+    { id: "dashboard", labelEn: "Executive Dashboard", labelBn: "নির্বাহী ড্যাশবোর্ড", icon: BarChart3, perm: "view_dashboard" },
+    { id: "procurement", labelEn: "Procurement (SCM)", labelBn: "ক্রয় ও সরবরাহ", icon: ShoppingCart, perm: "manage_procurement" },
+    { id: "inventory", labelEn: "Inventory (Stock)", labelBn: "ইনভেন্টরি ও মজুদ", icon: Package, perm: "manage_inventory" },
+    { id: "production", labelEn: "Production & MRP", labelBn: "উৎপাদন ও এমআরপি", icon: Factory, perm: "manage_production" },
+    { id: "commercial", labelEn: "Commercial & LC", labelBn: "বাণিজ্যিক ও এলসি", icon: Globe, perm: "manage_commercial" },
+    { id: "sales", labelEn: "Sales & Distribution", labelBn: "বিক্রয় ও বিতরণ", icon: ShoppingBag, perm: "manage_sales" },
+    { id: "finance", labelEn: "Finance & Ledger", labelBn: "অর্থ ও খতিয়ান", icon: Landmark, perm: "manage_finance" },
+    { id: "hr", labelEn: "HR & Payroll", labelBn: "এইচআর ও পে-রোল", icon: UserRound, perm: "manage_hr" },
+    { id: "logistics", labelEn: "Logistics & Fleet", labelBn: "পরিবহন ও বহর", icon: Truck, perm: "manage_logistics" },
+    { id: "crm", labelEn: "CRM & Customers", labelBn: "সিআরএম ও কাস্টমার", icon: MessageCircle, perm: "manage_crm" },
+    { id: "support", labelEn: "Support & Tickets", labelBn: "সহায়তা ও টিকিট", icon: HelpCircle, perm: "manage_support" },
+    { id: "operational_excellence", labelEn: "Operational Excellence", labelBn: "কার্যকরী উৎকর্ষ", icon: Sparkles, perm: "view_dashboard" }
   ];
 
-  // Limit visibility based on user role
+  // Limit visibility based on user role or granular permissions
   const filteredMenuItems = menuItems.filter((item) => {
+    if (permissions && permissions.length > 0) {
+      if (role === "CFO") return true;
+      return permissions.includes(item.perm);
+    }
     if (role === "SCM Manager") {
-      // SCM Manager focuses on logistics and supply chain
       return !["finance", "hr", "crm"].includes(item.id);
     }
     if (role === "Warehouse Admin") {
-      // Warehouse Admin only handles storage, production, logistics, dashboard, and support
       return !["finance", "hr", "crm", "commercial", "procurement", "sales", "operational_excellence"].includes(item.id);
     }
-    return true; // CFO sees all
+    if (role === "Sales Officer") {
+      return ["dashboard", "sales", "crm", "support"].includes(item.id);
+    }
+    if (role === "Finance Officer") {
+      return ["dashboard", "finance", "commercial", "procurement", "support"].includes(item.id);
+    }
+    return true; // CFO / Admin
   });
 
   return (
