@@ -12,7 +12,9 @@ import {
   Info,
   CheckCircle,
   AlertTriangle,
-  FolderOpen
+  FolderOpen,
+  Database,
+  RefreshCw
 } from "lucide-react";
 import { Notification, DocStatus } from "../types";
 
@@ -25,6 +27,8 @@ interface HeaderProps {
   setDarkMode: (val: boolean) => void;
   triggerSearchOpen: () => void;
   onQuickAction: (action: string) => void;
+  dbConnected: boolean;
+  onResetDB: () => void;
 }
 
 export default function Header({
@@ -35,7 +39,9 @@ export default function Header({
   darkMode,
   setDarkMode,
   triggerSearchOpen,
-  onQuickAction
+  onQuickAction,
+  dbConnected,
+  onResetDB
 }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -148,6 +154,23 @@ export default function Header({
               </button>
             </div>
           )}
+        </div>
+
+        {/* Database Status Indicator */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200/50 dark:border-white/10 bg-slate-50 dark:bg-slate-800/30">
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${dbConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></span>
+            <span className="text-[10px] font-bold font-mono tracking-wide text-slate-500 dark:text-slate-400">
+              {isBangla ? "নিওন পিজি" : "NEON PG"}
+            </span>
+          </div>
+          <button
+            onClick={onResetDB}
+            className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors rounded hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+            title={isBangla ? "ডাটাবেজ রি-সিড করুন" : "Re-seed Dummy Data"}
+          >
+            <RefreshCw className="h-3 w-3" />
+          </button>
         </div>
 
         {/* Language Toggle */}

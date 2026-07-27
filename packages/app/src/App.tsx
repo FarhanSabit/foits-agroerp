@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   initialSuppliers,
   initialInventory,
@@ -50,7 +50,10 @@ import {
   X,
   Plus,
   HelpCircle,
-  AlertTriangle
+  AlertTriangle,
+  Database,
+  RefreshCw,
+  Cpu
 } from "lucide-react";
 
 export default function App() {
@@ -79,6 +82,10 @@ export default function App() {
     currentDemoStep: 0
   });
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [dbConnected, setDbConnected] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isBangla, setIsBangla] = useState(false);
@@ -86,6 +93,72 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+
+  // 1. Fetch initial state from Neon DB via Express API
+  useEffect(() => {
+    async function initConnection() {
+      try {
+        const healthRes = await fetch("/api/health");
+        const healthData = await healthRes.json();
+        if (healthData.status === "ok") {
+          setDbConnected(true);
+        } else {
+          setDbError("Database returned status: unhealthy");
+        }
+      } catch (err: any) {
+        setDbError(err.message || "Failed to contact Express server");
+      }
+
+      try {
+        const stateRes = await fetch("/api/erp/state");
+        if (stateRes.ok) {
+          const fetchedState = await stateRes.json();
+          setState(fetchedState);
+        }
+      } catch (err: any) {
+        console.error("Failed to load ERP state from DB:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    initConnection();
+  }, []);
+
+  // 2. Debounced persistence to Neon DB when state updates
+  useEffect(() => {
+    if (isLoading) return;
+
+    const syncTimeout = setTimeout(async () => {
+      try {
+        await fetch("/api/erp/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ state })
+        });
+      } catch (err) {
+        console.error("Failed to sync state to Neon DB:", err);
+      }
+    }, 1000);
+
+    return () => clearTimeout(syncTimeout);
+  }, [state, isLoading]);
+
+  // Reset database state back to initial seed data
+  const handleResetDB = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/erp/reset", { method: "POST" });
+      if (res.ok) {
+        const seededState = await res.json();
+        setState(seededState);
+      }
+    } catch (err) {
+      console.error("Failed to reset Neon DB:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   // Mark notification as read
   const handleMarkNotificationRead = (id: string) => {
@@ -723,6 +796,68 @@ export default function App() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className={`flex flex-col items-center justify-center min-h-screen ${darkMode ? "dark bg-[#070a13]" : "bg-slate-50"}`}>
+        <div className="max-w-md w-full p-8 rounded-2xl bg-white dark:bg-[#111625] border border-slate-200/60 dark:border-white/10 shadow-xl text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="p-4 bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl animate-pulse">
+              <Database className="h-12 w-12 text-indigo-600 dark:text-indigo-400" />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white font-mono tracking-wide">
+              {isBangla ? "নিওন ডাটাবেজ সংযুক্ত হচ্ছে..." : "CONNECTING NEON DB"}
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {isBangla 
+                ? "ওআইটিএস ঢাকা অ্যাগ্রো ইআরপি ডাটাবেজ সুরক্ষার সাথে সিঙ্ক হচ্ছে।" 
+                : "Synchronizing OITS Dhaka Agro ERP records securely with Neon serverless cluster."}
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/40 dark:border-white/5 space-y-3">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400">Host Engine:</span>
+              <span className="text-indigo-600 dark:text-indigo-400 font-bold">AWS East-2</span>
+            </div>
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400">Neon Auth:</span>
+              <span className="text-green-600 dark:text-green-400 font-bold">Enabled</span>
+            </div>
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-slate-400">SSL Channel:</span>
+              <span className="text-green-600 dark:text-green-400 font-bold">Require & Bound</span>
+            </div>
+            <div className="flex items-center justify-between text-xs font-mono border-t border-slate-200/50 dark:border-white/5 pt-2">
+              <span className="text-slate-400">Status:</span>
+              {dbError ? (
+                <span className="text-red-500 font-bold truncate max-w-[200px]" title={dbError}>
+                  Offline: {dbError}
+                </span>
+              ) : (
+                <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5 animate-pulse">
+                  <Cpu className="h-3 w-3 animate-spin text-indigo-500" />
+                  Seeding / Fetching...
+                </span>
+              )}
+            </div>
+          </div>
+
+          {dbError && (
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold font-mono tracking-wider transition-colors"
+            >
+              RETRY CONNECTION
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex min-h-screen ${darkMode ? "dark" : ""}`}>
       <div className="flex w-full bg-slate-50 dark:bg-[#070a13] text-slate-800 dark:text-slate-100 transition-colors font-sans antialiased overflow-hidden relative">
@@ -756,6 +891,8 @@ export default function App() {
             setDarkMode={setDarkMode}
             triggerSearchOpen={() => setSearchOpen(true)}
             onQuickAction={handleQuickAction}
+            dbConnected={dbConnected}
+            onResetDB={handleResetDB}
           />
 
           {/* Golden Flow Timeline Bar */}
