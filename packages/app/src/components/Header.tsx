@@ -285,7 +285,7 @@ export default function Header({
         </div>
 
         {/* Database Status Indicator */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/50 dark:border-white/10 bg-slate-50 dark:bg-slate-800/30">
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/50 dark:border-white/10 bg-slate-50 dark:bg-slate-800/30">
           <div className="flex items-center gap-1">
             <span className={`h-2 w-2 rounded-full ${dbConnected ? "bg-green-500 animate-pulse" : "bg-red-500"}`}></span>
             <span className="hidden md:inline text-[9px] font-bold font-mono tracking-wide text-slate-500 dark:text-slate-400">
@@ -303,7 +303,7 @@ export default function Header({
 
         {/* PWA / Field Warehouse Offline Status Indicator */}
         <div
-          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold font-mono transition-all ${
+          className={`hidden md:flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold font-mono transition-all ${
             isOnline
               ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
               : "bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-500/50 shadow-xs"
@@ -342,7 +342,7 @@ export default function Header({
           title={isBangla ? "Switch to English" : "বাংলায় পরিবর্তন করুন"}
         >
           <Languages className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-          <span className="font-mono tracking-tight text-[11px]">{isBangla ? "EN" : "বাংলা"}</span>
+          <span className="font-mono tracking-tight text-[11px] hidden sm:inline">{isBangla ? "EN" : "বাংলা"}</span>
         </button>
 
         {/* Currency Toggle */}
@@ -355,7 +355,7 @@ export default function Header({
           title={isBangla ? "মুদ্রা পরিবর্তন করুন" : "Toggle Currency"}
         >
           <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono text-xs">{currency === "USD" ? "$" : currency === "EUR" ? "€" : "৳"}</span>
-          <span className="font-mono tracking-tight text-[11px]">{currency}</span>
+          <span className="font-mono tracking-tight text-[11px] hidden sm:inline">{currency}</span>
         </button>
 
         {/* Theme Toggle */}

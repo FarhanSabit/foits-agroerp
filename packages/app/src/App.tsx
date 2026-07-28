@@ -46,6 +46,7 @@ import OperationalExcellence from "./components/OperationalExcellence";
 import AuthModal from "./components/AuthModal";
 import RoleManagerModal from "./components/RoleManagerModal";
 import AccessDeniedView from "./components/AccessDeniedView";
+import { ErrorToastProvider } from "./components/ErrorToastContext";
 import { initialUsers, UserAccount } from "./types";
 
 import {
@@ -59,7 +60,12 @@ import {
   AlertTriangle,
   Database,
   RefreshCw,
-  Cpu
+  Cpu,
+  LayoutDashboard,
+  ShoppingBag,
+  Layers,
+  Activity,
+  Menu
 } from "lucide-react";
 
 function HighlightText({ text, query }: { text: string; query: string }) {
@@ -1290,8 +1296,9 @@ export default function App() {
   }
 
   return (
-    <div className={`flex min-h-screen ${darkMode ? "dark" : ""}`}>
-      <div className="flex w-full bg-slate-50 dark:bg-[#070a13] text-slate-800 dark:text-slate-100 transition-colors font-sans antialiased overflow-hidden relative">
+    <ErrorToastProvider>
+      <div className={`flex min-h-screen ${darkMode ? "dark" : ""}`}>
+        <div className="flex w-full bg-slate-50 dark:bg-[#070a13] text-slate-800 dark:text-slate-100 transition-colors font-sans antialiased overflow-hidden relative pb-16 md:pb-0">
         
         {/* Background Mesh Gradients */}
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 dark:bg-indigo-600/15 rounded-full blur-[120px] pointer-events-none z-0"></div>
@@ -1323,7 +1330,7 @@ export default function App() {
         )}
 
         {/* Main content grid */}
-        <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
+        <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 pb-16 md:pb-0">
           
           {/* Header sticky top */}
           <Header
@@ -1550,7 +1557,36 @@ export default function App() {
           isBangla={isBangla}
         />
 
+        {/* Touch-Friendly Mobile Bottom Navigation Bar */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#0b101f]/95 border-t border-slate-200 dark:border-white/10 backdrop-blur-md flex justify-around items-center py-2 px-1 shadow-lg">
+          {[
+            { id: "dashboard", label: isBangla ? "ড্যাশবোর্ড" : "Dashboard", icon: LayoutDashboard },
+            { id: "procurement", label: isBangla ? "প্রকিউরমেন্ট" : "Procurement", icon: ShoppingBag },
+            { id: "production", label: isBangla ? "প্রোডাকশন" : "Production", icon: Cpu },
+            { id: "inventory", label: isBangla ? "ইনভেন্টরি" : "Inventory", icon: Layers },
+            { id: "operational_excellence", label: isBangla ? "অপারেশনস" : "Operations", icon: Activity }
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setCurrentTab(item.id)}
+                className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer ${
+                  isActive
+                    ? "text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/40"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-[10px] mt-0.5 font-medium tracking-tight">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
       </div>
     </div>
+    </ErrorToastProvider>
   );
 }

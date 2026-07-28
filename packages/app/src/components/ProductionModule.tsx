@@ -190,7 +190,7 @@ export default function ProductionModule({
               </p>
             </div>
 
-            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden">
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                   <tr>

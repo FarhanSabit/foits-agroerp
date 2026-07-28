@@ -142,7 +142,7 @@ export default function ExecutiveDashboard({
     } catch (e) {
       // fallback
     }
-    return ["kpi-metrics", "primary-chart", "finance-deviation", "pending-approvals", "operational-health"];
+    return ["kpi-metrics", "primary-chart", "supplier-performance", "finance-deviation", "pending-approvals", "operational-health"];
   });
 
   const [forecastData] = useState([
@@ -743,6 +743,50 @@ if (widgetId === "primary-chart") {
           </div>
         </div>
 
+      </div>
+    </SortableWidget>
+  );
+}
+
+if (widgetId === "supplier-performance") {
+  return (
+    <SortableWidget key="supplier-performance" id="supplier-performance">
+      <div className="glass-card p-6 border border-slate-200/50 dark:border-white/5 space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <Award className="h-4.5 w-4.5 text-indigo-500" />
+              {isBangla ? "সরবরাহকারী গুণগত মান ও লিড-টাইম তুলনা" : "Supplier Quality Scores & Lead-Time Comparison"}
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {isBangla ? "সিএফও ড্যাশবোর্ডের জন্য ভেন্ডর পারফরম্যান্স মেট্রিকস" : "Vendor performance benchmark comparing quality score (%) vs lead-time (days)"}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+              <span className="text-[10px] font-mono text-slate-500 uppercase">Quality Score (%)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <span className="text-[10px] font-mono text-slate-500 uppercase">Lead-Time (Days)</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={state.suppliers.map(s => ({ name: s.name.length > 12 ? s.name.substring(0, 12) + "..." : s.name, quality: s.rating ? s.rating * 18 : 88, leadTime: s.leadTimeDays || 4 }))}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#334155" : "#e2e8f0"} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: darkMode ? "#94a3b8" : "#64748b" }} />
+              <YAxis yAxisId="left" orientation="left" stroke="#6366f1" tick={{ fontSize: 10 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+              <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tick={{ fontSize: 10 }} domain={[0, 15]} tickFormatter={(v) => `${v}d`} />
+              <RechartsTooltip contentStyle={{ backgroundColor: darkMode ? "#0f172a" : "#ffffff", borderColor: darkMode ? "#1e293b" : "#e2e8f0", borderRadius: "12px", fontSize: "11px" }} />
+              <Bar yAxisId="left" dataKey="quality" name="Quality Score (%)" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={24} />
+              <Bar yAxisId="right" dataKey="leadTime" name="Lead Time (Days)" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </SortableWidget>
   );
