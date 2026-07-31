@@ -5,6 +5,7 @@
 
 import express from "express";
 import { eq, sql } from "drizzle-orm";
+import { GoogleGenAI } from "@google/genai";
 import { db } from "../../../db/connection";
 import {
   agroErpState,
@@ -19,8 +20,24 @@ import {
 } from "../../../db/schema";
 import { ERPStateSchema } from "@agro-erp/shared-utils";
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 export const app = express();
 app.use(express.json({ limit: "50mb" }));
+
+// 0.5 POST: Supplier Risk Score
+app.post("/api/supplier-risk-score", async (req, res) => {
+  try {
+    const { supplierData } = req.body;
+    const prompt = `Analyze the following supplier data and calculate a risk score (0-100) and provide a brief justification: ${JSON.stringify(supplierData)}`;
+    const result = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: prompt,
+    });
+    res.json({ result: result.text });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // 0. GET: Health Check
 app.get("/api/health", async (req, res) => {

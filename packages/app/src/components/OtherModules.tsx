@@ -1113,7 +1113,7 @@ export default function OtherModules({
           )}
 
           {/* Sales order list */}
-          <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden">
+          <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                 <tr>
@@ -1210,7 +1210,7 @@ export default function OtherModules({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* Ledger Accounts Table */}
-            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden bg-white/10 dark:bg-white/[0.01] backdrop-blur-xs">
+            <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden overflow-x-auto bg-white/10 dark:bg-white/[0.01] backdrop-blur-xs">
               <div className="bg-white/30 dark:bg-slate-950/40 p-3 border-b border-slate-200/50 dark:border-white/10">
                 <span className="text-[10px] font-mono text-slate-500 font-bold uppercase tracking-widest">
                   {isBangla ? "হিসাব তালিকা" : "CHART OF ACCOUNTS"}
@@ -1299,7 +1299,7 @@ export default function OtherModules({
             </p>
           </div>
 
-          <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden">
+          <div className="border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                 <tr>
@@ -1456,7 +1456,7 @@ export default function OtherModules({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Support Tickets list */}
-            <div className="md:col-span-2 border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden bg-white/10 dark:bg-white/[0.01] backdrop-blur-xs">
+            <div className="md:col-span-2 border border-slate-200/50 dark:border-white/5 rounded-xl overflow-hidden overflow-x-auto bg-white/10 dark:bg-white/[0.01] backdrop-blur-xs">
               <div className="bg-white/30 dark:bg-slate-950/40 p-3 border-b border-slate-200/50 dark:border-white/10">
                 <span className="text-[10px] font-mono text-slate-500 font-bold uppercase tracking-widest">
                   {isBangla ? "টিকেট তালিকা" : "OPEN COMPLAINT TICKETS"}

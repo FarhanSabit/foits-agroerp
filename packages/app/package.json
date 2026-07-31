@@ -12,14 +12,18 @@
     "@agro-erp/shared-utils": "*",
     "@agro-erp/shared-ui": "*",
     "@google/genai": "^2.4.0",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.546.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "recharts": "^3.10.1",
     "motion": "^12.23.24"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^3.0.0"
   }
 }

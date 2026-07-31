@@ -68,6 +68,54 @@ const Skeleton = ({ className }: { className?: string; key?: React.Key }) => (
   <div className={`animate-pulse bg-slate-200 dark:bg-slate-800 rounded-lg ${className}`} />
 );
 
+const SupplierRiskItem = ({ supplier, isBangla }: { supplier: any, isBangla: boolean, key?: React.Key }) => {
+  const [riskScore, setRiskScore] = React.useState<{ score: number, justification: string } | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  const calculateRisk = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/supplier-risk-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplierData: supplier }),
+      });
+      const data = await response.json();
+      // The API returns a string from Gemini, parse it
+      const resultText = data.result;
+      const scoreMatch = resultText.match(/(\d{1,3})/);
+      setRiskScore({
+        score: scoreMatch ? parseInt(scoreMatch[0]) : 50,
+        justification: resultText,
+      });
+    } catch (e) {
+      console.error("Error calculating risk", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    calculateRisk();
+  }, [supplier.id]);
+
+  return (
+    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-white/10 shadow-xs">
+      <div className="flex justify-between items-start mb-2">
+        <span className="text-xs font-bold text-slate-800 dark:text-white">{supplier.name}</span>
+        {loading ? (
+          <span className="text-[10px] text-slate-400">...</span>
+        ) : (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${riskScore && riskScore.score > 70 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+            {riskScore?.score || "..."}/100
+          </span>
+        )}
+      </div>
+      <p className="text-[10px] text-slate-500 truncate">{riskScore?.justification || "Analyzing..."}</p>
+    </div>
+  );
+};
+
 export default function ProcurementModule({
   state,
   onRaisePR,
@@ -414,8 +462,6 @@ export default function ProcurementModule({
 
   return (
     <div className="space-y-6">
-      
-      {/* Sub tabs navigation */}
       <div className="flex border-b border-slate-200/50 dark:border-white/10 gap-1 overflow-x-auto">
         {(
           [
@@ -596,21 +642,7 @@ export default function ProcurementModule({
                   </h3>
                   <div className="space-y-4">
                     {state.suppliers.slice(0, 3).map((s) => (
-                      <div key={s.id} className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-white/10 shadow-xs">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{s.name}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${s.rating > 4.5 ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
-                            {s.rating}
-                          </span>
-                        </div>
-                        <div className="w-full bg-slate-100 dark:bg-white/5 h-1 rounded-full overflow-hidden">
-                          <div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${s.rating * 20}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-2 text-[9px] font-mono text-slate-400 uppercase">
-                          <span>Reliability Index</span>
-                          <span className="text-indigo-500 font-bold">{Math.round(s.rating * 20)}%</span>
-                        </div>
-                      </div>
+                      <SupplierRiskItem key={s.id} supplier={s} isBangla={isBangla} />
                     ))}
                   </div>
                 </div>
@@ -618,7 +650,8 @@ export default function ProcurementModule({
             </div>
           </div>
         )}
-        
+      </div>
+
         {/* Tab 1: Suppliers */}
         {activeSubTab === "suppliers" && (
           <div className="flex flex-col space-y-4 p-4">
@@ -881,6 +914,7 @@ export default function ProcurementModule({
                 </div>
               )}
 
+            <div className="overflow-x-auto border border-slate-200/50 dark:border-white/10 rounded-xl">
               <table className="w-full text-left border-collapse text-xs">
                 <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
                   <tr>
@@ -1021,8 +1055,9 @@ export default function ProcurementModule({
               </tbody>
             </table>
           </div>
-        );
-      })()}
+        </div>
+      );
+    })()}
 
         {/* Tab 3: RFQs & Bids Comparison Matrix */}
         {activeSubTab === "rfq" && (
@@ -1043,7 +1078,7 @@ export default function ProcurementModule({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Bids received list */}
-                  <div className="overflow-x-auto border border-slate-200/50 dark:border-white/5 rounded-xl bg-white/30 dark:bg-white/[0.01] backdrop-blur-xs">
+                  <div className="overflow-x-auto border border-slate-200/50 dark:border-white/5 rounded-xl bg-white/30 dark:bg-white/[0.01] backdrop-blur-xs mt-2">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-white/30 dark:bg-slate-950/40 font-mono text-slate-500">
                         <tr>
@@ -1155,10 +1190,11 @@ export default function ProcurementModule({
               </div>
             </div>
 
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
-                <tr>
-                  <th className="p-3.5 pl-6">{isBangla ? "পারচেজ অর্ডার নম্বর" : "PO Number"}</th>
+            <div className="overflow-x-auto border border-slate-200/50 dark:border-white/10 rounded-xl">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-white/30 dark:bg-slate-950/40 text-slate-500 uppercase tracking-widest font-bold border-b border-slate-200/50 dark:border-white/10 font-mono">
+                  <tr>
+                    <th className="p-3.5 pl-6">{isBangla ? "পারচেজ অর্ডার নম্বর" : "PO Number"}</th>
                   <th className="p-3.5">{isBangla ? "সরবরাহকারী" : "Awarded Supplier"}</th>
                   <th className="p-3.5">{isBangla ? "কার্যাদেশ তারিখ" : "Order Date"}</th>
                   <th className="p-3.5">{isBangla ? "ক্রয় আইটেম" : "Items Ordered"}</th>
@@ -1273,7 +1309,8 @@ export default function ProcurementModule({
               </tbody>
             </table>
           </div>
-        )}
+        </div>
+      )}
 
         {/* Tab 5: Goods Receipts */}
         {activeSubTab === "grn" && (
@@ -1450,8 +1487,6 @@ export default function ProcurementModule({
             </div>
           </div>
         )}
-
-      </div>
 
       {/* SUPPLIER SCORECARD MODAL */}
       {selectedSupplierId && (() => {
@@ -1843,7 +1878,7 @@ export default function ProcurementModule({
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] font-mono text-slate-600 dark:text-slate-300">
                         <div>
                           <span className="text-slate-400">Invoice Ref:</span>
                           <p className="font-bold text-slate-800 dark:text-slate-100">{ocrResult.invoiceNo}</p>

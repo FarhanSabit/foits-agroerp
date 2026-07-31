@@ -188,52 +188,54 @@ export default function GoldenFlow({
         </div>
 
         {/* Desktop Step Indicator timeline */}
-        <div className="grid grid-cols-12 gap-1 relative items-center mb-5">
-          
-          {/* Background connectors */}
-          <div className="absolute left-[4%] right-[4%] top-1/2 h-0.5 bg-slate-200/80 dark:bg-slate-800/80 -translate-y-1/2 z-0 hidden lg:block"></div>
-          <div
-            className="absolute left-[4%] top-1/2 h-0.5 bg-indigo-600 dark:bg-indigo-500 -translate-y-1/2 z-0 transition-all duration-300 hidden lg:block"
-            style={{ width: `${(currentStep / 11) * 92}%` }}
-          ></div>
-
-          {steps.map((st) => {
-            const Icon = st.icon;
-            const isCompleted = st.id < currentStep;
-            const isActive = st.id === currentStep;
+        <div className="overflow-x-auto scrollbar-hide pb-2 lg:pb-0">
+          <div className="flex lg:grid lg:grid-cols-12 gap-4 lg:gap-1 relative items-center mb-5 min-w-max lg:min-w-0">
             
-            return (
-              <button
-                key={st.id}
-                onClick={() => setCurrentStep(st.id)}
-                className="flex flex-col items-center text-center group z-10 focus:outline-none cursor-pointer"
-              >
-                <div
-                  className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all border ${
-                    isActive
-                      ? "bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-500 ring-4 ring-indigo-500/20 dark:ring-indigo-500/10 scale-110 shadow-lg shadow-indigo-500/20"
-                      : isCompleted
-                      ? "bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/25 dark:border-emerald-500/30"
-                      : "bg-white/40 dark:bg-white/5 backdrop-blur-xs text-slate-400 dark:text-slate-500 border-slate-200/50 dark:border-white/10 hover:border-slate-400 dark:hover:border-slate-500"
-                  }`}
-                  title={isBangla ? st.labelBn : st.labelEn}
+            {/* Background connectors */}
+            <div className="absolute left-[4%] right-[4%] top-1/2 h-0.5 bg-slate-200/80 dark:bg-slate-800/80 -translate-y-1/2 z-0 hidden lg:block"></div>
+            <div
+              className="absolute left-[4%] top-1/2 h-0.5 bg-indigo-600 dark:bg-indigo-500 -translate-y-1/2 z-0 transition-all duration-300 hidden lg:block"
+              style={{ width: `${(currentStep / 11) * 92}%` }}
+            ></div>
+
+            {steps.map((st) => {
+              const Icon = st.icon;
+              const isCompleted = st.id < currentStep;
+              const isActive = st.id === currentStep;
+              
+              return (
+                <button
+                  key={st.id}
+                  onClick={() => setCurrentStep(st.id)}
+                  className="flex flex-col items-center text-center group z-10 focus:outline-none cursor-pointer shrink-0 lg:shrink"
                 >
-                  <Icon className="h-4.5 w-4.5 shrink-0" />
-                </div>
-                <span
-                  className={`text-[9px] font-mono mt-1.5 hidden xl:block leading-none tracking-tight max-w-[80px] truncate ${
-                    isActive
-                      ? "text-indigo-700 dark:text-indigo-400 font-bold"
-                      : isCompleted
-                      ? "text-slate-600 dark:text-slate-400"
-                      : "text-slate-400 dark:text-slate-500"
-                  }`}
-                >
-                  {isBangla ? st.labelBn : st.labelEn}
-                </span>
-              </button>
-            );
-          })}
+                  <div
+                    className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all border ${
+                      isActive
+                        ? "bg-indigo-600 dark:bg-indigo-500 text-white border-indigo-500 ring-4 ring-indigo-500/20 dark:ring-indigo-500/10 scale-110 shadow-lg shadow-indigo-500/20"
+                        : isCompleted
+                        ? "bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/25 dark:border-emerald-500/30"
+                        : "bg-white/40 dark:bg-white/5 backdrop-blur-xs text-slate-400 dark:text-slate-500 border-slate-200/50 dark:border-white/10 hover:border-slate-400 dark:hover:border-slate-500"
+                    }`}
+                    title={isBangla ? st.labelBn : st.labelEn}
+                  >
+                    <Icon className="h-4.5 w-4.5 shrink-0" />
+                  </div>
+                  <span
+                    className={`text-[9px] font-mono mt-1.5 leading-none tracking-tight max-w-[80px] truncate ${
+                      isActive
+                        ? "text-indigo-700 dark:text-indigo-400 font-bold"
+                        : isCompleted
+                        ? "text-slate-600 dark:text-slate-400"
+                        : "text-slate-400 dark:text-slate-500"
+                    }`}
+                  >
+                    {isBangla ? st.labelBn : st.labelEn}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Current Step Instruction card */}

@@ -20,34 +20,36 @@ export const SupplierPerformanceD3: React.FC<SupplierPerformanceD3Props> = ({ da
   useEffect(() => {
     if (!svgRef.current || data.length === 0) return;
 
-    const margin = { top: 30, right: 30, bottom: 50, left: 60 };
-    const width = 800 - margin.left - margin.right;
-    const height = 400 - margin.top - margin.bottom;
+    const margin = { top: 30, right: 60, bottom: 50, left: 60 };
+    const width = 800;
+    const height = 400;
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
 
     // Clear existing content
     d3.select(svgRef.current).selectAll("*").remove();
 
     const svg = d3.select(svgRef.current)
-      .attr("width", width + margin.left + margin.right)
-      .attr("height", height + margin.top + margin.bottom)
+      .attr("viewBox", `0 0 ${width} ${height}`)
+      .attr("preserveAspectRatio", "xMidYMid meet")
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
     // X axis: Month
     const x = d3.scalePoint()
       .domain(data.map(d => d.month))
-      .range([0, width])
+      .range([0, innerWidth])
       .padding(0.5);
 
     svg.append("g")
-      .attr("transform", `translate(0,${height})`)
+      .attr("transform", `translate(0,${innerHeight})`)
       .call(d3.axisBottom(x))
       .attr("color", darkMode ? "#94a3b8" : "#475569");
 
     // Y axis: Lead Time Variance (Left)
     const yLeft = d3.scaleLinear()
       .domain([0, d3.max(data, (d: SupplierPerformanceData) => d.leadTimeVariance) as number || 10])
-      .range([height, 0]);
+      .range([innerHeight, 0]);
 
     svg.append("g")
       .call(d3.axisLeft(yLeft))
@@ -56,10 +58,10 @@ export const SupplierPerformanceD3: React.FC<SupplierPerformanceD3Props> = ({ da
     // Y axis: Quality Score (Right)
     const yRight = d3.scaleLinear()
       .domain([0, 100])
-      .range([height, 0]);
+      .range([innerHeight, 0]);
 
     svg.append("g")
-      .attr("transform", `translate(${width}, 0)`)
+      .attr("transform", `translate(${innerWidth}, 0)`)
       .call(d3.axisRight(yRight))
       .attr("color", "#10b981");
 
@@ -67,17 +69,15 @@ export const SupplierPerformanceD3: React.FC<SupplierPerformanceD3Props> = ({ da
     svg.append("text")
       .attr("transform", "rotate(-90)")
       .attr("y", -45)
-      .attr("x", -height / 2)
+      .attr("x", -innerHeight / 2)
       .attr("text-anchor", "middle")
       .attr("fill", "#6366f1")
       .style("font-size", "12px")
       .text(isBangla ? "লিড টাইম বৈচিত্র্য (দিন)" : "Lead Time Variance (Days)");
 
     svg.append("text")
-      .attr("transform", "rotate(90)")
-      .attr("y", width + 45) // Fixed: was -width - 45
-      .attr("x", height / 2)
       .attr("text-anchor", "middle")
+      .attr("transform", `translate(${innerWidth + 45}, ${innerHeight / 2}) rotate(90)`)
       .attr("fill", "#10b981")
       .style("font-size", "12px")
       .text(isBangla ? "গুণমান স্কোর (%)" : "Quality Score (%)");
@@ -112,6 +112,7 @@ export const SupplierPerformanceD3: React.FC<SupplierPerformanceD3Props> = ({ da
         .attr("fill", "none")
         .attr("stroke", "#10b981")
         .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "4 2")
         .attr("d", lineQuality)
         .style("opacity", 0.6);
 
@@ -138,8 +139,8 @@ export const SupplierPerformanceD3: React.FC<SupplierPerformanceD3Props> = ({ da
   }, [data, isBangla, darkMode]);
 
   return (
-    <div className="w-full overflow-x-auto bg-white/50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-200/50 dark:border-white/5">
-      <svg ref={svgRef} className="mx-auto" />
+    <div className="w-full aspect-video min-h-[300px] bg-white/50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-200/50 dark:border-white/5">
+      <svg ref={svgRef} className="w-full h-full" />
     </div>
   );
 };
